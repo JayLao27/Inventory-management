@@ -1,0 +1,14 @@
+{
+  "name": "inventory-simulation",
+  "version": "1.0.0",
+  "description": "Inventory management simulation for optimizing stocking strategies",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0"
+  }
+}
