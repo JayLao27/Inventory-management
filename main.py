@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import random
 import math
+from visualization import WorkerVisualization
 
 class Product:
     def __init__(self, name, sku, unit_cost, holding_cost, ordering_cost, lead_time, initial_stock):
@@ -163,10 +164,12 @@ class InvSimApp(tk.Tk):
         
         self.config_frame = ttk.Frame(self.notebook)
         self.interactive_frame = ttk.Frame(self.notebook)
+        self.visualization_frame = ttk.Frame(self.notebook)
         self.results_frame = ttk.Frame(self.notebook)
         
         self.notebook.add(self.config_frame, text="Configure & Simulate")
         self.notebook.add(self.interactive_frame, text="Interactive Play")
+        self.notebook.add(self.visualization_frame, text="Worker Visualization")
         self.notebook.add(self.results_frame, text="Results")
         
         self.build_config_ui()
