@@ -10,7 +10,8 @@ WIDTH, HEIGHT = 1000, 700
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Warehouse Worker Animation - Inventory Management")
 clock = pygame.time.Clock()
-font = pygame.font.Font(None, 36)
+font = pygame.font.Font(None, 32)
+small_font = pygame.font.Font(None, 22)
 
 # Colors
 WHITE = (255, 255, 255)
@@ -25,106 +26,155 @@ BLUE = (50, 100, 220)
 SHELF_COLOR = (139, 69, 19)
 ITEM_COLOR = (255, 165, 0)
 
-def draw_human(surface, x, y, left_arm_angle, right_arm_angle, frame):
-    """Draw an animated human figure"""
-    # Head
-    pygame.draw.circle(surface, SKIN, (int(x), int(y)), 20)
-    
-    # Eyes
-    pygame.draw.circle(surface, BLACK, (int(x - 8), int(y - 5)), 3)
-    pygame.draw.circle(surface, BLACK, (int(x + 8), int(y - 5)), 3)
-    
-    # Body/Torso
-    pygame.draw.rect(surface, SHIRT, (int(x - 12), int(y + 20), 24, 35), 0)
-    
-    # Pants
-    pygame.draw.rect(surface, PANTS, (int(x - 12), int(y + 55), 24, 30), 0)
-    
-    # Left arm with angle
-    left_elbow_x = int(x - 15 + 20 * math.cos(left_arm_angle))
-    left_elbow_y = int(y + 30 + 25 * math.sin(left_arm_angle))
-    pygame.draw.line(surface, SKIN, (int(x - 15), int(y + 30)), (left_elbow_x, left_elbow_y), 5)
-    
-    # Left hand
-    pygame.draw.circle(surface, SKIN, (left_elbow_x, left_elbow_y), 4)
-    
-    # Right arm with angle
-    right_elbow_x = int(x + 15 + 20 * math.cos(right_arm_angle))
-    right_elbow_y = int(y + 30 + 25 * math.sin(right_arm_angle))
-    pygame.draw.line(surface, SKIN, (int(x + 15), int(y + 30)), (right_elbow_x, right_elbow_y), 5)
-    
-    # Right hand
-    pygame.draw.circle(surface, SKIN, (right_elbow_x, right_elbow_y), 4)
-    
-    # Left leg
-    pygame.draw.line(surface, PANTS, (int(x - 8), int(y + 85)), (int(x - 8), int(y + 115)), 5)
-    # Left foot
-    pygame.draw.circle(surface, BLACK, (int(x - 8), int(y + 120)), 5)
-    
-    # Right leg with walking motion
-    right_leg_motion = 5 * math.sin(frame * 0.1)
-    pygame.draw.line(surface, PANTS, (int(x + 8), int(y + 85)), (int(x + 8 + right_leg_motion), int(y + 115)), 5)
-    # Right foot
-    pygame.draw.circle(surface, BLACK, (int(x + 8 + right_leg_motion), int(y + 120)), 5)
+# ------------------------------------------------------------------
+# Human sprite (no external assets)
+# ------------------------------------------------------------------
+
+def build_sprite_frames():
+    """Prebuild walking and reaching frames on Surfaces for a more realistic look."""
+    frames = []
+    for i in range(8):
+        surf = pygame.Surface((80, 140), pygame.SRCALPHA)
+
+        # Body proportions
+        cx, cy = 40, 60
+        sway = math.sin(i / 8 * math.tau) * 4
+        leg_angle = math.sin(i / 8 * math.tau)
+        arm_angle = math.sin(i / 8 * math.tau + math.pi)
+
+        # Shoes
+        pygame.draw.ellipse(surf, (30, 30, 35), (18 + sway, 116, 18, 10))
+        pygame.draw.ellipse(surf, (30, 30, 35), (44 + sway, 116, 18, 10))
+
+        # Pants
+        pygame.draw.rect(surf, (45, 60, 110), (28 + sway, 80, 24, 36), border_radius=6)
+
+        # Torso with vest highlight
+        pygame.draw.rect(surf, (35, 90, 190), (24 + sway, 44, 32, 40), border_radius=6)
+        pygame.draw.rect(surf, (250, 190, 60), (24 + sway + 10, 44, 12, 40), border_radius=4)
+
+        # Head with hard hat
+        pygame.draw.circle(surf, (250, 210, 180), (int(cx + sway), 30), 16)
+        pygame.draw.ellipse(surf, (240, 200, 60), (int(cx + sway - 18), 12, 36, 12))
+
+        # Arms (swing)
+        arm_len = 26
+        upper_arm_dx = arm_len * 0.6 * math.sin(arm_angle)
+        upper_arm_dy = arm_len * 0.6 * math.cos(arm_angle)
+        pygame.draw.line(
+            surf,
+            (250, 210, 180),
+            (int(cx + sway - 12), 52),
+            (int(cx + sway - 12 + upper_arm_dx), int(52 + upper_arm_dy)),
+            6,
+        )
+        pygame.draw.line(
+            surf,
+            (250, 210, 180),
+            (int(cx + sway + 12), 52),
+            (int(cx + sway + 12 - upper_arm_dx), int(52 - upper_arm_dy)),
+            6,
+        )
+
+        # Legs (swing)
+        leg_len = 30
+        leg_dx = leg_len * 0.5 * math.sin(leg_angle)
+        leg_dy = leg_len * math.cos(leg_angle)
+        pygame.draw.line(
+            surf,
+            (45, 60, 110),
+            (int(cx + sway - 6), 92),
+            (int(cx + sway - 6 + leg_dx), int(92 + leg_dy)),
+            6,
+        )
+        pygame.draw.line(
+            surf,
+            (45, 60, 110),
+            (int(cx + sway + 6), 92),
+            (int(cx + sway + 6 - leg_dx), int(92 + leg_dy)),
+            6,
+        )
+
+        frames.append(surf)
+
+    # Reaching frame (arms up)
+    reach = pygame.Surface((80, 140), pygame.SRCALPHA)
+    sway = 0
+    cx = 40
+    pygame.draw.ellipse(reach, (30, 30, 35), (18 + sway, 116, 18, 10))
+    pygame.draw.ellipse(reach, (30, 30, 35), (44 + sway, 116, 18, 10))
+    pygame.draw.rect(reach, (45, 60, 110), (28 + sway, 80, 24, 36), border_radius=6)
+    pygame.draw.rect(reach, (35, 90, 190), (24 + sway, 44, 32, 40), border_radius=6)
+    pygame.draw.rect(reach, (250, 190, 60), (24 + sway + 10, 44, 12, 40), border_radius=4)
+    pygame.draw.circle(reach, (250, 210, 180), (int(cx + sway), 30), 16)
+    pygame.draw.ellipse(reach, (240, 200, 60), (int(cx + sway - 18), 12, 36, 12))
+    pygame.draw.line(reach, (250, 210, 180), (int(cx + sway - 12), 52), (int(cx + sway - 20), 12), 6)
+    pygame.draw.line(reach, (250, 210, 180), (int(cx + sway + 12), 52), (int(cx + sway + 20), 12), 6)
+    frames.append(reach)
+    return frames
+
+class HumanSprite:
+    def __init__(self):
+        self.frames = build_sprite_frames()
+        self.walk_frames = self.frames[:-1]
+        self.reach_frame = self.frames[-1]
+        self.index = 0
+        self.timer = 0
+        self.frame_time = 110  # ms per frame
+
+    def update(self, dt):
+        self.timer += dt
+        if self.timer >= self.frame_time:
+            self.timer = 0
+            self.index = (self.index + 1) % len(self.walk_frames)
+
+    def render(self, surface, x, y, facing_right=True, reaching=False):
+        frame = self.reach_frame if reaching else self.walk_frames[self.index]
+        if not facing_right:
+            frame = pygame.transform.flip(frame, True, False)
+        rect = frame.get_rect(center=(int(x), int(y)))
+        surface.blit(frame, rect)
+
+# ------------------------------------------------------------------
+# Scene helpers
+# ------------------------------------------------------------------
 
 def draw_shelves(surface):
-    """Draw warehouse shelves with items"""
-    # Vertical supports
     pygame.draw.rect(surface, SHELF_COLOR, (100, 200, 20, 250), 0)
-    pygame.draw.rect(surface, SHELF_COLOR, (800, 200, 20, 250), 0)
-    
-    # Horizontal shelves
+    pygame.draw.rect(surface, SHELF_COLOR, (880, 200, 20, 250), 0)
     shelf_positions = [250, 350, 450]
     for shelf_y in shelf_positions:
-        pygame.draw.rect(surface, GRAY, (100, shelf_y, 720, 15), 0)
-        
-        # Add items on shelves
+        pygame.draw.rect(surface, GRAY, (100, shelf_y, 780, 15), 0)
         item_positions = [150, 250, 350, 450, 550, 650, 750]
         for item_x in item_positions:
             pygame.draw.rect(surface, ITEM_COLOR, (item_x, shelf_y - 30, 25, 25), 0)
             pygame.draw.rect(surface, BLACK, (item_x, shelf_y - 30, 25, 25), 2)
 
-def draw_path(surface, frame):
-    """Draw the path the worker takes"""
-    # Start position
+def draw_path(frame):
     start_x = 150
     end_x = 750
-    
-    # Calculate position based on frame
     progress = (frame % 200) / 200
     if progress < 0.5:
-        # Moving right
         x = start_x + (end_x - start_x) * (progress * 2)
     else:
-        # Moving left
         x = end_x - (end_x - start_x) * ((progress - 0.5) * 2)
-    
     return x
 
-def draw_ui(surface, frame, items_picked):
-    """Draw UI information"""
-    frame_text = font.render(f"Frame: {frame}", True, BLACK)
-    items_text = font.render(f"Items Picked: {items_picked}", True, BLACK)
-    status_text = font.render("Warehouse Worker Animation", True, GREEN)
-    
-    surface.blit(status_text, (20, 20))
-    surface.blit(frame_text, (20, 60))
-    surface.blit(items_text, (20, 100))
-    
-    # Instructions
-    small_font = pygame.font.Font(None, 24)
-    inst_text = small_font.render("Press SPACE to pause | Q to quit", True, GRAY)
-    surface.blit(inst_text, (20, HEIGHT - 40))
 
 def main():
     running = True
     frame = 0
     paused = False
     items_picked = 0
-    
+    human = HumanSprite()
+    prev_worker_x = None
+
     while running:
-        clock.tick(60)  # 60 FPS
-        
+        dt = clock.tick(60)
+        if not paused:
+            frame += 1
+        human.update(dt)
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
@@ -133,47 +183,36 @@ def main():
                     paused = not paused
                 elif event.key == pygame.K_q:
                     running = False
-        
-        # Update frame
-        if not paused:
-            frame += 1
-            # Count items picked every 100 frames
-            if frame % 100 == 0:
-                items_picked += 1
-        
-        # Clear screen
+
+        # Count items picked every 100 frames
+        if not paused and frame % 100 == 0:
+            items_picked += 1
+
         screen.fill(WHITE)
-        
-        # Draw warehouse
         draw_shelves(screen)
-        
-        # Get worker position
-        worker_x = draw_path(screen, frame)
-        
-        # Calculate arm angles for reaching motion
-        # When worker approaches shelf (x between 300-500), arms reach up
-        if 300 < worker_x < 500:
-            reach_progress = abs(worker_x - 400) / 100
-            left_arm_angle = math.pi * 0.3 + reach_progress * 0.5
-            right_arm_angle = math.pi * 0.3 + reach_progress * 0.5
-        else:
-            # Walking motion
-            left_arm_angle = math.pi * 0.2 + math.sin(frame * 0.08) * 0.3
-            right_arm_angle = math.pi * 0.2 - math.sin(frame * 0.08) * 0.3
-        
-        # Draw worker
-        draw_human(screen, worker_x, 500, left_arm_angle, right_arm_angle, frame)
-        
-        # Draw UI
-        draw_ui(screen, frame, items_picked)
-        
-        # Draw pause indicator
+
+        worker_x = draw_path(frame)
+        facing_right = True if prev_worker_x is None else worker_x >= prev_worker_x
+        prev_worker_x = worker_x
+        reaching = 300 < worker_x < 500
+        human.render(screen, worker_x, 520, facing_right=facing_right, reaching=reaching)
+
+        # UI
+        status_text = font.render("Warehouse Worker Animation", True, GREEN)
+        frame_text = font.render(f"Frame: {frame}", True, BLACK)
+        items_text = font.render(f"Items Picked: {items_picked}", True, BLACK)
+        screen.blit(status_text, (20, 20))
+        screen.blit(frame_text, (20, 60))
+        screen.blit(items_text, (20, 100))
+        inst_text = small_font.render("SPACE pause | Q quit", True, GRAY)
+        screen.blit(inst_text, (20, HEIGHT - 40))
+
         if paused:
             pause_text = font.render("PAUSED", True, RED)
-            screen.blit(pause_text, (WIDTH // 2 - 50, 20))
-        
+            screen.blit(pause_text, (WIDTH // 2 - 60, 20))
+
         pygame.display.flip()
-    
+
     pygame.quit()
     sys.exit()
 
