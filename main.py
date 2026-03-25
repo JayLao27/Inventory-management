@@ -1,11 +1,11 @@
-import tkinter as tk
-from tkinter import ttk, messagebox
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import random
 import math
-from visualization import WorkerVisualization
+import random
+import sys
+import pygame
 
+# ----------------------------
+# Core domain classes
+# ----------------------------
 class Product:
     def __init__(self, name, sku, unit_cost, holding_cost, ordering_cost, lead_time, initial_stock):
         self.name = name
@@ -21,6 +21,9 @@ class Warehouse:
         self.name = name
         self.capacity = capacity
 
+# ----------------------------
+# Demand generation
+# ----------------------------
 def generate_demand(day, pattern, base, variance, total_days):
     noise = random.gauss(0, variance)
     if pattern == "constant":
@@ -37,9 +40,11 @@ def generate_demand(day, pattern, base, variance, total_days):
         demand = base + noise
     else:
         demand = base + noise
-        
     return max(0, demand)
 
+# ----------------------------
+# Simulation Engine
+# ----------------------------
 class SimulationEngine:
     def __init__(self, product, warehouse, demand_params, policy_params, days=365):
         self.product = product
@@ -47,26 +52,32 @@ class SimulationEngine:
         self.demand_params = demand_params
         self.policy_params = policy_params
         self.days = days
-        
+
         self.history = {
-            "days": [], "stock": [], "demand": [], "orders": [],
-            "holding_costs": [], "ordering_costs": [], "stockouts": []
+            "days": [],
+            "stock": [],
+            "demand": [],
+            "orders": [],
+            "holding_costs": [],
+            "ordering_costs": [],
+            "stockouts": []
         }
-        
+
         self.stock = self.product.initial_stock
-        self.pending_orders = [] 
-        
+        self.pending_orders = []
         self.cumulative_holding = 0
         self.cumulative_ordering = 0
         self.stockout_count = 0
-        
         self.current_demand_base = self.demand_params["base"]
         self.current_day = 0
 
     def step(self, manual_order_qty=0):
+        if self.current_day >= self.days:
+            return
+
         self.current_day += 1
         day = self.current_day
-        
+
         # 1. Process arriving orders
         arrived_qty = 0
         remaining_orders = []
@@ -101,10 +112,9 @@ class SimulationEngine:
         # 5. Determine Ordering (Policy)
         order_qty = 0
         total_pending = sum(o["qty"] for o in self.pending_orders)
-        
         p_type = self.policy_params["type"]
         avg_demand = self.demand_params["base"]
-        
+
         if p_type == "human":
             order_qty = manual_order_qty
         elif p_type == "rop":
@@ -116,7 +126,6 @@ class SimulationEngine:
                 eoq = math.ceil(math.sqrt((2 * annual_demand * self.product.ordering_cost) / (self.product.holding_cost * 365)))
             else:
                 eoq = 100
-                
             safety_stock = math.ceil(self.product.lead_time * avg_demand * self.policy_params.get("safety_factor", 1.0))
             if self.stock + total_pending <= safety_stock:
                 order_qty = eoq
@@ -149,226 +158,147 @@ class SimulationEngine:
         self.history["ordering_costs"].append(self.cumulative_ordering)
         self.history["stockouts"].append(self.stockout_count)
 
-    def run(self):
-        for _ in range(self.days):
-            self.step()
+# ----------------------------
+# Pygame visualization helpers
+# ----------------------------
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+SKIN = (255, 200, 150)
+SHIRT = (50, 100, 200)
+PANTS = (50, 50, 100)
+GRAY = (128, 128, 128)
+RED = (220, 50, 50)
+GREEN = (50, 200, 50)
+BLUE = (50, 100, 220)
+SHELF_COLOR = (139, 69, 19)
+ITEM_COLOR = (255, 165, 0)
 
-class InvSimApp(tk.Tk):
-    def __init__(self):
-        super().__init__()
-        self.title("InvSim - Inventory Strategy Simulator")
-        self.geometry("1000x800")
-        
-        self.notebook = ttk.Notebook(self)
-        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        self.config_frame = ttk.Frame(self.notebook)
-        self.interactive_frame = ttk.Frame(self.notebook)
-        self.visualization_frame = ttk.Frame(self.notebook)
-        self.results_frame = ttk.Frame(self.notebook)
-        
-        self.notebook.add(self.config_frame, text="Configure & Simulate")
-        self.notebook.add(self.interactive_frame, text="Interactive Play")
-        self.notebook.add(self.visualization_frame, text="Worker Visualization")
-        self.notebook.add(self.results_frame, text="Results")
-        
-        self.build_config_ui()
-        
-    def build_config_ui(self):
-        # Product Config
-        prod_lf = ttk.LabelFrame(self.config_frame, text="Product Configuration")
-        prod_lf.pack(fill=tk.X, padx=10, pady=5)
-        
-        ttk.Label(prod_lf, text="Initial Stock:").grid(row=0, column=0, padx=5, pady=5)
-        self.init_stock_var = tk.IntVar(value=200)
-        ttk.Entry(prod_lf, textvariable=self.init_stock_var).grid(row=0, column=1, padx=5, pady=5)
-        
-        ttk.Label(prod_lf, text="Lead Time (days):").grid(row=0, column=2, padx=5, pady=5)
-        self.lead_time_var = tk.IntVar(value=5)
-        ttk.Entry(prod_lf, textvariable=self.lead_time_var).grid(row=0, column=3, padx=5, pady=5)
-        
-        ttk.Label(prod_lf, text="Holding Cost/day:").grid(row=1, column=0, padx=5, pady=5)
-        self.holding_cost_var = tk.DoubleVar(value=0.05)
-        ttk.Entry(prod_lf, textvariable=self.holding_cost_var).grid(row=1, column=1, padx=5, pady=5)
-        
-        ttk.Label(prod_lf, text="Ordering Cost:").grid(row=1, column=2, padx=5, pady=5)
-        self.ordering_cost_var = tk.DoubleVar(value=50.0)
-        ttk.Entry(prod_lf, textvariable=self.ordering_cost_var).grid(row=1, column=3, padx=5, pady=5)
-        
-        # Demand Config
-        dem_lf = ttk.LabelFrame(self.config_frame, text="Demand Pattern")
-        dem_lf.pack(fill=tk.X, padx=10, pady=5)
-        
-        ttk.Label(dem_lf, text="Type:").grid(row=0, column=0, padx=5, pady=5)
-        self.dem_type_var = tk.StringVar(value="constant")
-        ttk.Combobox(dem_lf, textvariable=self.dem_type_var, values=["constant", "seasonal", "trending", "random-walk"], state="readonly").grid(row=0, column=1, padx=5, pady=5)
-        
-        ttk.Label(dem_lf, text="Base Demand:").grid(row=0, column=2, padx=5, pady=5)
-        self.dem_base_var = tk.DoubleVar(value=30.0)
-        ttk.Entry(dem_lf, textvariable=self.dem_base_var).grid(row=0, column=3, padx=5, pady=5)
-        
-        ttk.Label(dem_lf, text="Variance:").grid(row=1, column=0, padx=5, pady=5)
-        self.dem_var_var = tk.DoubleVar(value=5.0)
-        ttk.Entry(dem_lf, textvariable=self.dem_var_var).grid(row=1, column=1, padx=5, pady=5)
-        
-        # Policy Config
-        pol_lf = ttk.LabelFrame(self.config_frame, text="Reorder Policy")
-        pol_lf.pack(fill=tk.X, padx=10, pady=5)
-        
-        ttk.Label(pol_lf, text="Type:").grid(row=0, column=0, padx=5, pady=5)
-        self.pol_type_var = tk.StringVar(value="human")
-        ttk.Combobox(pol_lf, textvariable=self.pol_type_var, values=["human", "rop", "eoq", "jit", "periodic"], state="readonly").grid(row=0, column=1, padx=5, pady=5)
-        
-        ttk.Label(pol_lf, text="ROP Level / Target:").grid(row=0, column=2, padx=5, pady=5)
-        self.pol_rop_var = tk.IntVar(value=100)
-        ttk.Entry(pol_lf, textvariable=self.pol_rop_var).grid(row=0, column=3, padx=5, pady=5)
-        
-        ttk.Label(pol_lf, text="Order Qty:").grid(row=1, column=0, padx=5, pady=5)
-        self.pol_qty_var = tk.IntVar(value=150)
-        ttk.Entry(pol_lf, textvariable=self.pol_qty_var).grid(row=1, column=1, padx=5, pady=5)
+def draw_human(surface, x, y, left_arm_angle, right_arm_angle, frame):
+    pygame.draw.circle(surface, SKIN, (int(x), int(y)), 20)
+    pygame.draw.circle(surface, BLACK, (int(x - 8), int(y - 5)), 3)
+    pygame.draw.circle(surface, BLACK, (int(x + 8), int(y - 5)), 3)
+    pygame.draw.rect(surface, SHIRT, (int(x - 12), int(y + 20), 24, 35), 0)
+    pygame.draw.rect(surface, PANTS, (int(x - 12), int(y + 55), 24, 30), 0)
+    left_elbow_x = int(x - 15 + 20 * math.cos(left_arm_angle))
+    left_elbow_y = int(y + 30 + 25 * math.sin(left_arm_angle))
+    pygame.draw.line(surface, SKIN, (int(x - 15), int(y + 30)), (left_elbow_x, left_elbow_y), 5)
+    pygame.draw.circle(surface, SKIN, (left_elbow_x, left_elbow_y), 4)
+    right_elbow_x = int(x + 15 + 20 * math.cos(right_arm_angle))
+    right_elbow_y = int(y + 30 + 25 * math.sin(right_arm_angle))
+    pygame.draw.line(surface, SKIN, (int(x + 15), int(y + 30)), (right_elbow_x, right_elbow_y), 5)
+    pygame.draw.circle(surface, SKIN, (right_elbow_x, right_elbow_y), 4)
+    pygame.draw.line(surface, PANTS, (int(x - 8), int(y + 85)), (int(x - 8), int(y + 115)), 5)
+    pygame.draw.circle(surface, BLACK, (int(x - 8), int(y + 120)), 5)
+    right_leg_motion = 5 * math.sin(frame * 0.1)
+    pygame.draw.line(surface, PANTS, (int(x + 8), int(y + 85)), (int(x + 8 + right_leg_motion), int(y + 115)), 5)
+    pygame.draw.circle(surface, BLACK, (int(x + 8 + right_leg_motion), int(y + 120)), 5)
 
-        ttk.Label(pol_lf, text="Review Period (JIT/Per):").grid(row=1, column=2, padx=5, pady=5)
-        self.pol_per_var = tk.IntVar(value=7)
-        ttk.Entry(pol_lf, textvariable=self.pol_per_var).grid(row=1, column=3, padx=5, pady=5)
+def draw_shelves(surface):
+    pygame.draw.rect(surface, SHELF_COLOR, (100, 200, 20, 250), 0)
+    pygame.draw.rect(surface, SHELF_COLOR, (880, 200, 20, 250), 0)
+    shelf_positions = [250, 350, 450]
+    for shelf_y in shelf_positions:
+        pygame.draw.rect(surface, GRAY, (100, shelf_y, 780, 15), 0)
+        item_positions = [150, 250, 350, 450, 550, 650, 750]
+        for item_x in item_positions:
+            pygame.draw.rect(surface, ITEM_COLOR, (item_x, shelf_y - 30, 25, 25), 0)
+            pygame.draw.rect(surface, BLACK, (item_x, shelf_y - 30, 25, 25), 2)
 
-        # Sim Config
-        sim_lf = ttk.Frame(self.config_frame)
-        sim_lf.pack(fill=tk.X, padx=10, pady=20)
-        
-        ttk.Label(sim_lf, text="Simulation Days:").pack(side=tk.LEFT, padx=5)
-        self.sim_days_var = tk.IntVar(value=365)
-        ttk.Entry(sim_lf, textvariable=self.sim_days_var, width=10).pack(side=tk.LEFT, padx=5)
-        
-        ttk.Button(sim_lf, text="Run Simulation", command=self.run_simulation).pack(side=tk.RIGHT, padx=5)
-        
-    def run_simulation(self):
-        try:
-            prod = Product("Widget", "W-1", 10.0, self.holding_cost_var.get(), self.ordering_cost_var.get(), self.lead_time_var.get(), self.init_stock_var.get())
-            wh = Warehouse("Main", 5000)
-            
-            dem_params = {
-                "type": self.dem_type_var.get(),
-                "base": self.dem_base_var.get(),
-                "variance": self.dem_var_var.get()
-            }
-            
-            pol_params = {
-                "type": self.pol_type_var.get(),
-                "reorder_point": self.pol_rop_var.get(),
-                "order_qty": self.pol_qty_var.get(),
-                "safety_factor": 1.2,
-                "buffer_days": 2,
-                "review_period": self.pol_per_var.get(),
-                "target_level": self.pol_rop_var.get()
-            }
-            
-            self.engine = SimulationEngine(prod, wh, dem_params, pol_params, self.sim_days_var.get())
-            
-            if pol_params["type"] == "human":
-                self.setup_interactive_mode()
-                self.notebook.select(self.interactive_frame)
-            else:
-                self.engine.run()
-                self.plot_results(self.engine.history)
-                self.notebook.select(self.results_frame)
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to run simulation:\n{e}")
+def draw_path(frame):
+    start_x = 150
+    end_x = 750
+    progress = (frame % 200) / 200
+    if progress < 0.5:
+        x = start_x + (end_x - start_x) * (progress * 2)
+    else:
+        x = end_x - (end_x - start_x) * ((progress - 0.5) * 2)
+    return x
 
-    def setup_interactive_mode(self):
-        for widget in self.interactive_frame.winfo_children():
-            widget.destroy()
-            
-        self.lbl_day = ttk.Label(self.interactive_frame, text=f"Day: {self.engine.current_day} / {self.engine.days}", font=("Arial", 16, "bold"))
-        self.lbl_day.pack(pady=15)
-        
-        info_frame = ttk.LabelFrame(self.interactive_frame, text="Current Status")
-        info_frame.pack(fill=tk.X, padx=20, pady=10)
-        
-        self.lbl_stock = ttk.Label(info_frame, text=f"Current Stock: {self.engine.stock}", font=("Arial", 14))
-        self.lbl_stock.pack(anchor=tk.W, padx=10, pady=5)
-        
-        self.lbl_demand = ttk.Label(info_frame, text="Yesterday's Demand: N/A", font=("Arial", 12))
-        self.lbl_demand.pack(anchor=tk.W, padx=10, pady=5)
-        
-        self.lbl_pending = ttk.Label(info_frame, text="Pending Orders: None", font=("Arial", 12))
-        self.lbl_pending.pack(anchor=tk.W, padx=10, pady=5)
-        
-        input_frame = ttk.Frame(self.interactive_frame)
-        input_frame.pack(fill=tk.X, padx=20, pady=20)
-        
-        ttk.Label(input_frame, text="Order Quantity:").pack(side=tk.LEFT, padx=5)
-        self.manual_order_var = tk.IntVar(value=0)
-        ttk.Entry(input_frame, textvariable=self.manual_order_var).pack(side=tk.LEFT, padx=5)
-        
-        ttk.Button(input_frame, text="Advance Day & Place Order", command=self.advance_interactive).pack(side=tk.LEFT, padx=15)
-        ttk.Button(input_frame, text="Skip to End (Auto 0 order)", command=self.skip_to_end).pack(side=tk.LEFT, padx=5)
-        
-        self.update_interactive_labels()
+def draw_ui(surface, font, small_font, state_text_lines):
+    y = 20
+    for text, color in state_text_lines:
+        surf = font.render(text, True, color)
+        surface.blit(surf, (20, y))
+        y += 30
+    inst = small_font.render("Up/Down adjust order | Enter advances day | S skip to end | Q quit", True, GRAY)
+    surface.blit(inst, (20, 660))
 
-    def update_interactive_labels(self):
-        self.lbl_day.config(text=f"Day: {self.engine.current_day} / {self.engine.days}")
-        self.lbl_stock.config(text=f"Current Stock: {self.engine.stock:.1f}")
-        
-        if self.engine.current_day > 0:
-            last_demand = self.engine.history["demand"][-1]
-            self.lbl_demand.config(text=f"Yesterday's Demand: {last_demand:.1f}")
-            
-        pending_strs = [f"{o['qty']} units (Arrives Day {o['arrival_day']})" for o in self.engine.pending_orders]
-        self.lbl_pending.config(text=f"Pending Orders: {', '.join(pending_strs) if pending_strs else 'None'}")
+# ----------------------------
+# Pygame-driven application
+# ----------------------------
+def main():
+    pygame.init()
+    WIDTH, HEIGHT = 1000, 700
+    screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    pygame.display.set_caption("Inventory Simulator - Pygame UI")
+    clock = pygame.time.Clock()
+    font = pygame.font.Font(None, 30)
+    small_font = pygame.font.Font(None, 22)
 
-    def advance_interactive(self):
-        try:
-            order_qty = self.manual_order_var.get()
-            if order_qty < 0: order_qty = 0
-        except ValueError:
-            order_qty = 0
-            
-        self.engine.step(manual_order_qty=order_qty)
-        self.manual_order_var.set(0)
-        
-        if self.engine.current_day >= self.engine.days:
-            messagebox.showinfo("Simulation Complete", "You have finished the simulation period!")
-            self.plot_results(self.engine.history)
-            self.notebook.select(self.results_frame)
+    # Build simulation
+    prod = Product("Widget", "W-1", 10.0, 0.05, 50.0, 5, 200)
+    wh = Warehouse("Main", 5000)
+    dem_params = {"type": "constant", "base": 30.0, "variance": 5.0}
+    pol_params = {"type": "human", "reorder_point": 100, "order_qty": 150}
+    engine = SimulationEngine(prod, wh, dem_params, pol_params, days=120)
+
+    manual_order_qty = 0
+    frame = 0
+    running = True
+
+    while running:
+        dt = clock.tick(60)
+        frame += 1
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_q:
+                    running = False
+                elif event.key == pygame.K_UP:
+                    manual_order_qty += 10
+                elif event.key == pygame.K_DOWN:
+                    manual_order_qty = max(0, manual_order_qty - 10)
+                elif event.key == pygame.K_RETURN:
+                    engine.step(manual_order_qty=manual_order_qty)
+                    manual_order_qty = 0
+                elif event.key == pygame.K_s:
+                    while engine.current_day < engine.days:
+                        engine.step(manual_order_qty=0)
+
+        screen.fill(WHITE)
+        draw_shelves(screen)
+
+        worker_x = draw_path(frame)
+        if 300 < worker_x < 500:
+            reach_progress = abs(worker_x - 400) / 100
+            left_arm_angle = math.pi * 0.3 + reach_progress * 0.5
+            right_arm_angle = math.pi * 0.3 + reach_progress * 0.5
         else:
-            self.update_interactive_labels()
+            left_arm_angle = math.pi * 0.2 + math.sin(frame * 0.08) * 0.3
+            right_arm_angle = math.pi * 0.2 - math.sin(frame * 0.08) * 0.3
+        draw_human(screen, worker_x, 500, left_arm_angle, right_arm_angle, frame)
 
-    def skip_to_end(self):
-        while self.engine.current_day < self.engine.days:
-            self.engine.step(manual_order_qty=0)
-        
-        messagebox.showinfo("Simulation Complete", "Skipped to end with 0 units ordered!")
-        self.plot_results(self.engine.history)
-        self.notebook.select(self.results_frame)
-            
-    def plot_results(self, history):
-        for widget in self.results_frame.winfo_children():
-            widget.destroy()
-            
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 6), sharex=True)
-        
-        ax1.plot(history["days"], history["stock"], label="Inventory Level", color='blue')
-        ax1.set_ylabel("Units")
-        ax1.set_title("Inventory Level Over Time")
-        ax1.grid(True)
-        ax1.legend()
-        
-        total_costs = [h + o for h, o in zip(history["holding_costs"], history["ordering_costs"])]
-        ax2.plot(history["days"], total_costs, label="Total Cost", color='red')
-        ax2.plot(history["days"], history["holding_costs"], label="Holding Cost", color='orange', linestyle='--')
-        ax2.plot(history["days"], history["ordering_costs"], label="Ordering Cost", color='purple', linestyle='--')
-        ax2.set_xlabel("Days")
-        ax2.set_ylabel("Cost ($)")
-        ax2.set_title("Cumulative Costs")
-        ax2.grid(True)
-        ax2.legend()
-        
-        fig.tight_layout()
-        
-        canvas = FigureCanvasTkAgg(fig, master=self.results_frame)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        last_demand = engine.history["demand"][-1] if engine.history["demand"] else 0
+        pending_strs = [f"{o['qty']} (Day {o['arrival_day']})" for o in engine.pending_orders]
+        pending_txt = ", ".join(pending_strs) if pending_strs else "None"
+        state_lines = [
+            (f"Day: {engine.current_day}/{engine.days}", BLACK),
+            (f"Stock: {engine.stock:.1f} units", BLACK),
+            (f"Last demand: {last_demand:.1f} units", BLACK),
+            (f"Pending orders: {pending_txt}", BLACK),
+            (f"Manual order queued: {manual_order_qty} units", BLUE),
+            (f"Holding cost: ${engine.cumulative_holding:.2f} | Ordering cost: ${engine.cumulative_ordering:.2f}", BLACK),
+        ]
+        if engine.current_day >= engine.days:
+            state_lines.append(("Simulation complete (press Q to exit)", GREEN))
+
+        draw_ui(screen, font, small_font, state_lines)
+        pygame.display.flip()
+
+    pygame.quit()
+    sys.exit()
 
 if __name__ == "__main__":
-    app = InvSimApp()
-    app.mainloop()
+    main()
