@@ -173,6 +173,121 @@ BLUE = (50, 100, 220)
 SHELF_COLOR = (139, 69, 19)
 ITEM_COLOR = (255, 165, 0)
 
+# ----------------------------
+# Human sprite (no external assets)
+# ----------------------------
+def build_sprite_frames():
+    """Prebuild walking and reaching frames on Surfaces for a more realistic look."""
+    frames = []
+    for i in range(8):
+        surf = pygame.Surface((80, 140), pygame.SRCALPHA)
+
+        # Body proportions
+        cx, cy = 40, 60
+        # Subtle sway for walk cycle
+        sway = math.sin(i / 8 * math.tau) * 4
+        # Leg swing angles
+        leg_angle = math.sin(i / 8 * math.tau)
+        arm_angle = math.sin(i / 8 * math.tau + math.pi)
+
+        # Shoes
+        pygame.draw.ellipse(surf, (30, 30, 35), (18 + sway, 116, 18, 10))
+        pygame.draw.ellipse(surf, (30, 30, 35), (44 + sway, 116, 18, 10))
+
+        # Pants
+        pygame.draw.rect(surf, (45, 60, 110), (28 + sway, 80, 24, 36), border_radius=6)
+
+        # Torso with vest highlight
+        pygame.draw.rect(surf, (35, 90, 190), (24 + sway, 44, 32, 40), border_radius=6)
+        pygame.draw.rect(surf, (250, 190, 60), (24 + sway + 10, 44, 12, 40), border_radius=4)
+
+        # Head with hard hat
+        pygame.draw.circle(surf, (250, 210, 180), (int(cx + sway), 30), 16)
+        pygame.draw.ellipse(surf, (240, 200, 60), (int(cx + sway - 18), 12, 36, 12))
+
+        # Arms (swing)
+        arm_len = 26
+        upper_arm_dx = arm_len * 0.6 * math.sin(arm_angle)
+        upper_arm_dy = arm_len * 0.6 * math.cos(arm_angle)
+        pygame.draw.line(
+            surf,
+            (250, 210, 180),
+            (int(cx + sway - 12), 52),
+            (int(cx + sway - 12 + upper_arm_dx), int(52 + upper_arm_dy)),
+            6,
+        )
+        pygame.draw.line(
+            surf,
+            (250, 210, 180),
+            (int(cx + sway + 12), 52),
+            (int(cx + sway + 12 - upper_arm_dx), int(52 - upper_arm_dy)),
+            6,
+        )
+
+        # Legs (swing)
+        leg_len = 30
+        leg_dx = leg_len * 0.5 * math.sin(leg_angle)
+        leg_dy = leg_len * math.cos(leg_angle)
+        pygame.draw.line(
+            surf,
+            (45, 60, 110),
+            (int(cx + sway - 6), 92),
+            (int(cx + sway - 6 + leg_dx), int(92 + leg_dy)),
+            6,
+        )
+        pygame.draw.line(
+            surf,
+            (45, 60, 110),
+            (int(cx + sway + 6), 92),
+            (int(cx + sway + 6 - leg_dx), int(92 + leg_dy)),
+            6,
+        )
+
+        frames.append(surf)
+
+    # Reaching frame (arms up)
+    reach = pygame.Surface((80, 140), pygame.SRCALPHA)
+    sway = 0
+    cx = 40
+    # Shoes & pants
+    pygame.draw.ellipse(reach, (30, 30, 35), (18 + sway, 116, 18, 10))
+    pygame.draw.ellipse(reach, (30, 30, 35), (44 + sway, 116, 18, 10))
+    pygame.draw.rect(reach, (45, 60, 110), (28 + sway, 80, 24, 36), border_radius=6)
+    # Torso & vest
+    pygame.draw.rect(reach, (35, 90, 190), (24 + sway, 44, 32, 40), border_radius=6)
+    pygame.draw.rect(reach, (250, 190, 60), (24 + sway + 10, 44, 12, 40), border_radius=4)
+    # Head & helmet
+    pygame.draw.circle(reach, (250, 210, 180), (int(cx + sway), 30), 16)
+    pygame.draw.ellipse(reach, (240, 200, 60), (int(cx + sway - 18), 12, 36, 12))
+    # Arms up
+    pygame.draw.line(reach, (250, 210, 180), (int(cx + sway - 12), 52), (int(cx + sway - 20), 12), 6)
+    pygame.draw.line(reach, (250, 210, 180), (int(cx + sway + 12), 52), (int(cx + sway + 20), 12), 6)
+    frames.append(reach)
+
+    return frames
+
+class HumanSprite:
+    def __init__(self):
+        self.frames = build_sprite_frames()
+        self.walk_frames = self.frames[:-1]
+        self.reach_frame = self.frames[-1]
+        self.index = 0
+        self.timer = 0
+        self.frame_time = 110  # ms per frame
+
+    def update(self, dt):
+        self.timer += dt
+        if self.timer >= self.frame_time:
+            self.timer = 0
+            self.index = (self.index + 1) % len(self.walk_frames)
+
+    def render(self, surface, x, y, facing_right=True, reaching=False):
+        frame = self.reach_frame if reaching else self.walk_frames[self.index]
+        if not facing_right:
+            frame = pygame.transform.flip(frame, True, False)
+        rect = frame.get_rect(center=(int(x), int(y)))
+        surface.blit(frame, rect)
+
 def draw_human(surface, x, y, left_arm_angle, right_arm_angle, frame):
     pygame.draw.circle(surface, SKIN, (int(x), int(y)), 20)
     pygame.draw.circle(surface, BLACK, (int(x - 8), int(y - 5)), 3)
@@ -234,6 +349,7 @@ def main():
     clock = pygame.time.Clock()
     font = pygame.font.Font(None, 30)
     small_font = pygame.font.Font(None, 22)
+    human = HumanSprite()
 
     # Build simulation
     prod = Product("Widget", "W-1", 10.0, 0.05, 50.0, 5, 200)
@@ -244,11 +360,13 @@ def main():
 
     manual_order_qty = 0
     frame = 0
+    prev_worker_x = None
     running = True
 
     while running:
         dt = clock.tick(60)
         frame += 1
+        human.update(dt)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -271,14 +389,10 @@ def main():
         draw_shelves(screen)
 
         worker_x = draw_path(frame)
-        if 300 < worker_x < 500:
-            reach_progress = abs(worker_x - 400) / 100
-            left_arm_angle = math.pi * 0.3 + reach_progress * 0.5
-            right_arm_angle = math.pi * 0.3 + reach_progress * 0.5
-        else:
-            left_arm_angle = math.pi * 0.2 + math.sin(frame * 0.08) * 0.3
-            right_arm_angle = math.pi * 0.2 - math.sin(frame * 0.08) * 0.3
-        draw_human(screen, worker_x, 500, left_arm_angle, right_arm_angle, frame)
+        facing_right = True if prev_worker_x is None else worker_x >= prev_worker_x
+        prev_worker_x = worker_x
+        reaching = 300 < worker_x < 500
+        human.render(screen, worker_x, 520, facing_right=facing_right, reaching=reaching)
 
         last_demand = engine.history["demand"][-1] if engine.history["demand"] else 0
         pending_strs = [f"{o['qty']} (Day {o['arrival_day']})" for o in engine.pending_orders]
