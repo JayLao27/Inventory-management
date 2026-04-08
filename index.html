@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Inventory management simulation — test reorder policies, demand patterns, and distribution strategies in a virtual environment before real-world deployment." />
-  <title>InvSim — Inventory Strategy Simulator</title>
+  <meta name="description" content="Grocery inventory simulation — test reorder policies, demand patterns, and stocking strategies for staple foods, canned goods, and household essentials." />
+  <title>InvSim — Grocery Strategy Simulator</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -44,22 +44,23 @@
     <!-- -------- CONFIGURE TAB -------- -->
     <section id="tab-configure" class="tab-panel active">
       <div class="panel-header">
-        <h1>Simulation Configuration</h1>
-        <p class="subtitle">Set up your products, warehouse, demand patterns, and reorder policies.</p>
+        <h1>Grocery Simulation Configuration</h1>
+        <p class="subtitle">Set up grocery items, storage capacity, demand patterns, and reorder policies.</p>
       </div>
 
       <div class="config-grid">
         <!-- Product Card -->
         <div class="glass-card" id="product-config-card">
-          <div class="card-title"><span class="card-icon">📦</span> Products</div>
+          <div class="card-title"><span class="card-icon">📦</span> Grocery Catalog</div>
           <div id="product-list" class="item-list"></div>
-          <button id="btn-add-product" class="btn btn-outline">+ Add Product</button>
+          <button id="btn-add-product" class="btn btn-outline">+ Add Grocery Item</button>
 
           <!-- Add / Edit Product Form (hidden by default) -->
           <div id="product-form" class="sub-form hidden">
-            <h3 id="product-form-title">Add Product</h3>
-            <label>Name <input id="pf-name" type="text" placeholder="e.g. Widget A" /></label>
-            <label>SKU <input id="pf-sku" type="text" placeholder="e.g. WA-001" /></label>
+            <h3 id="product-form-title">Add Grocery Item</h3>
+            <label>Name <input id="pf-name" type="text" placeholder="e.g. Rice" /></label>
+            <label>SKU <input id="pf-sku" type="text" placeholder="e.g. FOOD-RICE-001" /></label>
+            <label>Category <input id="pf-category" type="text" placeholder="e.g. Staple Foods" /></label>
             <div class="form-row">
               <label>Unit Cost ($) <input id="pf-unit-cost" type="number" min="0" step="0.01" value="10" /></label>
               <label>Holding Cost / unit / day ($) <input id="pf-holding-cost" type="number" min="0" step="0.01" value="0.05" /></label>
@@ -78,8 +79,8 @@
 
         <!-- Warehouse Card -->
         <div class="glass-card" id="warehouse-config-card">
-          <div class="card-title"><span class="card-icon">🏭</span> Warehouse</div>
-          <label>Warehouse Name <input id="wh-name" type="text" value="Main Warehouse" /></label>
+          <div class="card-title"><span class="card-icon">🏭</span> Grocery Storage</div>
+          <label>Storage Name <input id="wh-name" type="text" value="Main Storage" /></label>
           <label>Max Capacity (units) <input id="wh-capacity" type="number" min="1" value="5000" /></label>
         </div>
 
@@ -179,7 +180,7 @@
     <section id="tab-results" class="tab-panel">
       <div class="panel-header">
         <h1>Simulation Results</h1>
-        <p class="subtitle">Analyze performance metrics, costs, and bottlenecks.</p>
+        <p class="subtitle">Analyze grocery performance metrics, costs, and bottlenecks.</p>
       </div>
 
       <!-- KPI Row -->
@@ -236,7 +237,7 @@
   </main>
 
   <footer id="app-footer">
-    <p>InvSim &mdash; Inventory Strategy Simulator &copy; 2026</p>
+    <p>InvSim &mdash; Grocery Strategy Simulator &copy; 2026</p>
   </footer>
 
   <script type="module" src="/src/main.js"></script>
