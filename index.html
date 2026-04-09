@@ -54,27 +54,6 @@
           <div class="card-title"><span class="card-icon">📦</span> Grocery Catalog</div>
           <div id="product-list" class="item-list"></div>
           <button id="btn-add-product" class="btn btn-outline">+ Add Grocery Item</button>
-
-          <!-- Add / Edit Product Form (hidden by default) -->
-          <div id="product-form" class="sub-form hidden">
-            <h3 id="product-form-title">Add Grocery Item</h3>
-            <label>Name <input id="pf-name" type="text" placeholder="e.g. Rice" /></label>
-            <label>SKU <input id="pf-sku" type="text" placeholder="e.g. FOOD-RICE-001" /></label>
-            <label>Category <input id="pf-category" type="text" placeholder="e.g. Staple Foods" /></label>
-            <div class="form-row">
-              <label>Unit Cost ($) <input id="pf-unit-cost" type="number" min="0" step="0.01" value="10" /></label>
-              <label>Holding Cost / unit / day ($) <input id="pf-holding-cost" type="number" min="0" step="0.01" value="0.05" /></label>
-            </div>
-            <div class="form-row">
-              <label>Ordering Cost ($) <input id="pf-ordering-cost" type="number" min="0" step="0.01" value="50" /></label>
-              <label>Lead Time (days) <input id="pf-lead-time" type="number" min="1" value="5" /></label>
-            </div>
-            <label>Initial Stock <input id="pf-initial-stock" type="number" min="0" value="200" /></label>
-            <div class="form-actions">
-              <button id="btn-save-product" class="btn btn-primary">Save</button>
-              <button id="btn-cancel-product" class="btn btn-ghost">Cancel</button>
-            </div>
-          </div>
         </div>
 
         <!-- Warehouse Card -->
@@ -129,6 +108,32 @@
         </div>
       </div>
     </section>
+
+    <!-- Product Form Modal -->
+    <div id="product-form-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="product-form-title">
+      <div class="modal-backdrop" id="product-form-backdrop"></div>
+      <div class="modal-panel">
+        <div id="product-form" class="sub-form modal-form">
+          <h3 id="product-form-title">Add Grocery Item</h3>
+          <label>Name <input id="pf-name" type="text" placeholder="e.g. Rice" /></label>
+          <label>SKU <input id="pf-sku" type="text" placeholder="e.g. FOOD-RICE-001" /></label>
+          <label>Category <input id="pf-category" type="text" placeholder="e.g. Staple Foods" /></label>
+          <div class="form-row">
+            <label>Unit Cost ($) <input id="pf-unit-cost" type="number" min="0" step="0.01" value="10" /></label>
+            <label>Holding Cost / unit / day ($) <input id="pf-holding-cost" type="number" min="0" step="0.01" value="0.05" /></label>
+          </div>
+          <div class="form-row">
+            <label>Ordering Cost ($) <input id="pf-ordering-cost" type="number" min="0" step="0.01" value="50" /></label>
+            <label>Lead Time (days) <input id="pf-lead-time" type="number" min="1" value="5" /></label>
+          </div>
+          <label>Initial Stock <input id="pf-initial-stock" type="number" min="0" value="200" /></label>
+          <div class="form-actions">
+            <button type="button" id="btn-save-product" class="btn btn-primary">Save</button>
+            <button type="button" id="btn-cancel-product" class="btn btn-ghost">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- -------- SIMULATE TAB -------- -->
     <section id="tab-simulate" class="tab-panel">
