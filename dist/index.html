@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Grocery inventory simulation — test reorder policies, demand patterns, and stocking strategies for staple foods, canned goods, and household essentials." />
+  <title>InvSim — Grocery Strategy Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script type="module" crossorigin src="/assets/index-B0EMO9y3.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-ugwBCdsE.css">
+</head>
+<body>
+  <!-- ============ Top Navigation ============ -->
+  <header id="app-header">
+    <div class="header-brand">
+      <div class="logo-icon">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <rect x="2" y="8" width="24" height="18" rx="3" stroke="url(#g1)" stroke-width="2"/>
+          <path d="M8 8V5a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3" stroke="url(#g1)" stroke-width="2"/>
+          <line x1="2" y1="15" x2="26" y2="15" stroke="url(#g1)" stroke-width="2"/>
+          <circle cx="14" cy="15" r="2" fill="url(#g1)"/>
+          <defs><linearGradient id="g1" x1="0" y1="0" x2="28" y2="28"><stop stop-color="#6366f1"/><stop offset="1" stop-color="#a855f7"/></linearGradient></defs>
+        </svg>
+      </div>
+      <span class="brand-name">InvSim</span>
+    </div>
+    <nav id="main-nav">
+      <button class="nav-tab active" data-tab="configure">
+        <span class="tab-icon">⚙</span> Configure
+      </button>
+      <button class="nav-tab" data-tab="simulate">
+        <span class="tab-icon">▶</span> Simulate
+      </button>
+      <button class="nav-tab" data-tab="results">
+        <span class="tab-icon">📊</span> Results
+      </button>
+    </nav>
+  </header>
+
+  <!-- ============ Main Content ============ -->
+  <main id="app-main">
+
+    <!-- -------- CONFIGURE TAB -------- -->
+    <section id="tab-configure" class="tab-panel active">
+      <div class="panel-header">
+        <h1>Grocery Simulation Configuration</h1>
+        <p class="subtitle">Set up grocery items, storage capacity, demand patterns, and reorder policies.</p>
+      </div>
+
+      <div class="config-grid">
+        <!-- Product Card -->
+        <div class="glass-card" id="product-config-card">
+          <div class="card-title"><span class="card-icon">📦</span> Grocery Catalog</div>
+          <div id="product-list" class="item-list"></div>
+          <button id="btn-add-product" class="btn btn-outline">+ Add Grocery Item</button>
+        </div>
+
+        <!-- Warehouse Card -->
+        <div class="glass-card" id="warehouse-config-card">
+          <div class="card-title"><span class="card-icon">🏭</span> Grocery Storage</div>
+          <label>Storage Name <input id="wh-name" type="text" value="Main Storage" /></label>
+          <label>Max Capacity (units) <input id="wh-capacity" type="number" min="1" value="5000" /></label>
+        </div>
+
+        <!-- Demand Pattern Card -->
+        <div class="glass-card" id="demand-config-card">
+          <div class="card-title"><span class="card-icon">📈</span> Demand Pattern</div>
+          <label>
+            Pattern Type
+            <select id="demand-type">
+              <option value="constant">Constant</option>
+              <option value="seasonal">Seasonal (Sine Wave)</option>
+              <option value="trending">Trending (Linear Growth)</option>
+              <option value="random-walk">Random Walk</option>
+            </select>
+          </label>
+          <div class="form-row">
+            <label>Base Demand / day <input id="demand-base" type="number" min="0" value="30" /></label>
+            <label>Variance (σ) <input id="demand-variance" type="number" min="0" step="0.1" value="5" /></label>
+          </div>
+          <div id="demand-extra-fields"></div>
+          <canvas id="demand-preview" width="380" height="140"></canvas>
+        </div>
+
+        <!-- Policy Card -->
+        <div class="glass-card" id="policy-config-card">
+          <div class="card-title"><span class="card-icon">📋</span> Reorder Policy</div>
+          <label>
+            Policy
+            <select id="policy-type">
+              <option value="rop">Fixed Reorder Point (ROP)</option>
+              <option value="eoq">Economic Order Quantity (EOQ)</option>
+              <option value="jit">Just-In-Time (JIT)</option>
+              <option value="periodic">Periodic Review</option>
+            </select>
+          </label>
+          <div id="policy-params"></div>
+        </div>
+
+        <!-- Simulation Settings Card -->
+        <div class="glass-card" id="sim-settings-card">
+          <div class="card-title"><span class="card-icon">🔧</span> Simulation Settings</div>
+          <div class="form-row">
+            <label>Duration (days) <input id="sim-duration" type="number" min="30" max="730" value="180" /></label>
+            <label>Monte Carlo Runs <input id="sim-runs" type="number" min="1" max="1000" value="50" /></label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Product Form Modal -->
+    <div id="product-form-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="product-form-title">
+      <div class="modal-backdrop" id="product-form-backdrop"></div>
+      <div class="modal-panel">
+        <div id="product-form" class="sub-form modal-form">
+          <h3 id="product-form-title">Add Grocery Item</h3>
+          <label>Name <input id="pf-name" type="text" placeholder="e.g. Rice" /></label>
+          <label>SKU <input id="pf-sku" type="text" placeholder="e.g. FOOD-RICE-001" /></label>
+          <label>Category <input id="pf-category" type="text" placeholder="e.g. Staple Foods" /></label>
+          <div class="form-row">
+            <label>Unit Cost ($) <input id="pf-unit-cost" type="number" min="0" step="0.01" value="10" /></label>
+            <label>Holding Cost / unit / day ($) <input id="pf-holding-cost" type="number" min="0" step="0.01" value="0.05" /></label>
+          </div>
+          <div class="form-row">
+            <label>Ordering Cost ($) <input id="pf-ordering-cost" type="number" min="0" step="0.01" value="50" /></label>
+            <label>Lead Time (days) <input id="pf-lead-time" type="number" min="1" value="5" /></label>
+          </div>
+          <label>Initial Stock <input id="pf-initial-stock" type="number" min="0" value="200" /></label>
+          <div class="form-actions">
+            <button type="button" id="btn-save-product" class="btn btn-primary">Save</button>
+            <button type="button" id="btn-cancel-product" class="btn btn-ghost">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- -------- SIMULATE TAB -------- -->
+    <section id="tab-simulate" class="tab-panel">
+      <div class="panel-header">
+        <h1>Run Simulation</h1>
+        <p class="subtitle">Execute Monte Carlo simulations and compare strategies.</p>
+      </div>
+
+      <div class="sim-controls glass-card">
+        <div class="sim-summary" id="sim-summary"></div>
+        <button id="btn-run-sim" class="btn btn-primary btn-lg pulse-btn">
+          <span class="btn-icon">▶</span> Run Simulation
+        </button>
+        <div id="sim-progress-wrap" class="hidden">
+          <div class="progress-bar"><div id="sim-progress" class="progress-fill"></div></div>
+          <p id="sim-progress-label">Running…</p>
+        </div>
+      </div>
+
+      <!-- Strategy Comparison Builder -->
+      <div class="glass-card" id="comparison-builder">
+        <div class="card-title"><span class="card-icon">⚖️</span> Strategy Comparison</div>
+        <p class="hint">Add additional strategies to compare side-by-side.</p>
+        <div id="strategy-list" class="item-list"></div>
+        <button id="btn-add-strategy" class="btn btn-outline">+ Add Strategy</button>
+
+        <div id="strategy-form" class="sub-form hidden">
+          <h3>Add Comparison Strategy</h3>
+          <label>Label <input id="sf-label" type="text" placeholder="e.g. Aggressive EOQ" /></label>
+          <label>
+            Policy
+            <select id="sf-policy">
+              <option value="rop">Fixed Reorder Point (ROP)</option>
+              <option value="eoq">Economic Order Quantity (EOQ)</option>
+              <option value="jit">Just-In-Time (JIT)</option>
+              <option value="periodic">Periodic Review</option>
+            </select>
+          </label>
+          <div id="sf-params"></div>
+          <div class="form-actions">
+            <button id="btn-save-strategy" class="btn btn-primary">Save</button>
+            <button id="btn-cancel-strategy" class="btn btn-ghost">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- -------- RESULTS TAB -------- -->
+    <section id="tab-results" class="tab-panel">
+      <div class="panel-header">
+        <h1>Simulation Results</h1>
+        <p class="subtitle">Analyze grocery performance metrics, costs, and bottlenecks.</p>
+      </div>
+
+      <!-- KPI Row -->
+      <div class="kpi-row" id="kpi-row"></div>
+
+      <!-- Charts -->
+      <div class="charts-grid">
+        <div class="glass-card chart-card">
+          <div class="card-title">Inventory Level Over Time</div>
+          <canvas id="chart-inventory" width="700" height="300"></canvas>
+        </div>
+        <div class="glass-card chart-card">
+          <div class="card-title">Cost Breakdown</div>
+          <canvas id="chart-costs" width="700" height="300"></canvas>
+        </div>
+        <div class="glass-card chart-card">
+          <div class="card-title">Fill Rate Over Time</div>
+          <canvas id="chart-fillrate" width="700" height="300"></canvas>
+        </div>
+        <div class="glass-card chart-card">
+          <div class="card-title">Demand vs. Fulfilled</div>
+          <canvas id="chart-demand" width="700" height="300"></canvas>
+        </div>
+      </div>
+
+      <!-- Comparison Table -->
+      <div class="glass-card" id="comparison-table-card">
+        <div class="card-title"><span class="card-icon">🏆</span> Strategy Comparison</div>
+        <div class="table-wrap">
+          <table id="comparison-table">
+            <thead>
+              <tr>
+                <th>Strategy</th>
+                <th>Total Cost</th>
+                <th>Holding Cost</th>
+                <th>Ordering Cost</th>
+                <th>Stockout Cost</th>
+                <th>Fill Rate</th>
+                <th>Avg Inventory</th>
+                <th>Stockout Days</th>
+              </tr>
+            </thead>
+            <tbody id="comparison-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Bottleneck Alerts -->
+      <div class="glass-card" id="bottleneck-card">
+        <div class="card-title"><span class="card-icon">⚠️</span> Bottleneck Analysis</div>
+        <div id="bottleneck-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer id="app-footer">
+    <p>InvSim &mdash; Grocery Strategy Simulator &copy; 2026</p>
+  </footer>
+
+</body>
+</html>
