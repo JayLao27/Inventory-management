@@ -25,7 +25,7 @@ export function refreshSimSummary() {
   const el = document.getElementById('sim-summary');
   if (!el) return;
   el.innerHTML = `
-    <strong>${products.length}</strong> product(s) in <strong>${wh.name}</strong> (cap: ${wh.capacity})
+    <strong>${products.length}</strong> grocery item(s) in <strong>${wh.name}</strong> (cap: ${wh.capacity})
     &nbsp;|&nbsp; Demand: <strong>${demand.type}</strong> (base: ${demand.base}, σ: ${demand.variance})
     &nbsp;|&nbsp; Policy: <strong>${policyLabel}</strong>
     <br/>

@@ -1,5 +1,5 @@
 /**
- * ConfigPanel – handles product CRUD, warehouse, demand, and policy configuration.
+ * ConfigPanel – handles grocery item CRUD, storage, demand, and policy configuration.
  */
 
 import { Product } from '../engine/product.js';
@@ -11,11 +11,23 @@ import { drawSparkline } from '../charts/chartRenderer.js';
 let products = [];
 let editingIndex = -1;
 
+function openProductModal() {
+  document.getElementById('product-form-modal').classList.remove('hidden');
+  document.body.classList.add('modal-open');
+}
+
+function closeProductModal() {
+  document.getElementById('product-form-modal').classList.add('hidden');
+  document.body.classList.remove('modal-open');
+  document.getElementById('btn-save-product').textContent = 'Save';
+  editingIndex = -1;
+}
+
 export function getProducts() { return products; }
 
 export function getWarehouseConfig() {
   return {
-    name: document.getElementById('wh-name').value || 'Main Warehouse',
+    name: document.getElementById('wh-name').value || 'Main Storage',
     capacity: +(document.getElementById('wh-capacity').value) || 5000,
   };
 }
@@ -62,14 +74,16 @@ function renderProductList() {
   products.forEach((p, i) => {
     const row = document.createElement('div');
     row.className = 'item-row';
+    const categoryLabel = p.category ? `<span class="item-tag">${p.category}</span>` : '';
     row.innerHTML = `
       <div>
         <span class="item-name">${p.name}</span>
+        ${categoryLabel}
         <span class="item-meta"> &mdash; ${p.sku} | $${p.unitCost}/unit | LT: ${p.leadTime}d | Stock: ${p.initialStock}</span>
       </div>
       <div class="item-actions">
-        <button class="btn-edit" data-idx="${i}" title="Edit">✏️</button>
-        <button class="btn-delete" data-idx="${i}" title="Delete">🗑️</button>
+        <button type="button" class="btn-edit" data-idx="${i}" title="Edit">✏️</button>
+        <button type="button" class="btn-delete" data-idx="${i}" title="Delete">🗑️</button>
       </div>`;
     list.appendChild(row);
   });
@@ -82,14 +96,15 @@ function renderProductList() {
 }
 
 function openProductForm(idx = -1) {
-  const form = document.getElementById('product-form');
-  form.classList.remove('hidden');
+  openProductModal();
   editingIndex = idx;
-  document.getElementById('product-form-title').textContent = idx >= 0 ? 'Edit Product' : 'Add Product';
+  document.getElementById('product-form-title').textContent = idx >= 0 ? 'Edit Grocery Item' : 'Add Grocery Item';
+  document.getElementById('btn-save-product').textContent = idx >= 0 ? 'Update' : 'Save';
   if (idx >= 0) {
     const p = products[idx];
     document.getElementById('pf-name').value = p.name;
     document.getElementById('pf-sku').value = p.sku;
+    document.getElementById('pf-category').value = p.category || '';
     document.getElementById('pf-unit-cost').value = p.unitCost;
     document.getElementById('pf-holding-cost').value = p.holdingCost;
     document.getElementById('pf-ordering-cost').value = p.orderingCost;
@@ -98,18 +113,22 @@ function openProductForm(idx = -1) {
   } else {
     document.getElementById('pf-name').value = '';
     document.getElementById('pf-sku').value = '';
+    document.getElementById('pf-category').value = '';
     document.getElementById('pf-unit-cost').value = 10;
     document.getElementById('pf-holding-cost').value = 0.05;
     document.getElementById('pf-ordering-cost').value = 50;
     document.getElementById('pf-lead-time').value = 5;
     document.getElementById('pf-initial-stock').value = 200;
   }
+
+  document.getElementById('pf-name').focus();
 }
 
 function saveProduct() {
   const data = {
-    name: document.getElementById('pf-name').value || 'Product',
+    name: document.getElementById('pf-name').value || 'Grocery Item',
     sku: document.getElementById('pf-sku').value || 'SKU-001',
+    category: document.getElementById('pf-category').value || '',
     unitCost: +(document.getElementById('pf-unit-cost').value),
     holdingCost: +(document.getElementById('pf-holding-cost').value),
     orderingCost: +(document.getElementById('pf-ordering-cost').value),
@@ -121,8 +140,7 @@ function saveProduct() {
   } else {
     products.push(new Product(data));
   }
-  document.getElementById('product-form').classList.add('hidden');
-  editingIndex = -1;
+  closeProductModal();
   renderProductList();
 }
 
@@ -174,12 +192,15 @@ function updateDemandPreview() {
 
 /* ---- Init ---- */
 export function initConfigPanel() {
-  // Product buttons
+  // Grocery item buttons
   document.getElementById('btn-add-product').addEventListener('click', () => openProductForm(-1));
   document.getElementById('btn-save-product').addEventListener('click', saveProduct);
-  document.getElementById('btn-cancel-product').addEventListener('click', () => {
-    document.getElementById('product-form').classList.add('hidden');
-    editingIndex = -1;
+  document.getElementById('btn-cancel-product').addEventListener('click', closeProductModal);
+  document.getElementById('product-form-backdrop').addEventListener('click', closeProductModal);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !document.getElementById('product-form-modal').classList.contains('hidden')) {
+      closeProductModal();
+    }
   });
 
   // Policy params
@@ -192,8 +213,31 @@ export function initConfigPanel() {
   document.getElementById('demand-variance').addEventListener('input', updateDemandPreview);
   renderDemandExtraFields();
 
-  // Add two sample products
-  products.push(new Product({ name: 'Widget A', sku: 'WA-001', unitCost: 12, holdingCost: 0.04, orderingCost: 45, leadTime: 4, initialStock: 250 }));
-  products.push(new Product({ name: 'Gadget B', sku: 'GB-002', unitCost: 28, holdingCost: 0.08, orderingCost: 60, leadTime: 7, initialStock: 150 }));
+  // Seed the catalog with the requested grocery list
+  products.push(new Product({ name: 'Rice', sku: 'FOOD-RICE-001', category: 'Staple Foods', unitCost: 48, holdingCost: 0.05, orderingCost: 55, leadTime: 4, initialStock: 600 }));
+  products.push(new Product({ name: 'Bread', sku: 'FOOD-BREAD-002', category: 'Staple Foods', unitCost: 28, holdingCost: 0.08, orderingCost: 35, leadTime: 2, initialStock: 180 }));
+  products.push(new Product({ name: 'Instant noodles', sku: 'FOOD-NOODLES-003', category: 'Staple Foods', unitCost: 18, holdingCost: 0.04, orderingCost: 30, leadTime: 5, initialStock: 320 }));
+  products.push(new Product({ name: 'Flour', sku: 'FOOD-FLOUR-004', category: 'Staple Foods', unitCost: 36, holdingCost: 0.05, orderingCost: 40, leadTime: 4, initialStock: 220 }));
+
+  products.push(new Product({ name: 'Sardines', sku: 'CANNED-SARDINES-005', category: 'Canned & Packaged Goods', unitCost: 22, holdingCost: 0.04, orderingCost: 32, leadTime: 6, initialStock: 260 }));
+  products.push(new Product({ name: 'Corned beef', sku: 'CANNED-CORNBEEF-006', category: 'Canned & Packaged Goods', unitCost: 58, holdingCost: 0.06, orderingCost: 45, leadTime: 6, initialStock: 180 }));
+  products.push(new Product({ name: 'Tuna', sku: 'CANNED-TUNA-007', category: 'Canned & Packaged Goods', unitCost: 52, holdingCost: 0.05, orderingCost: 42, leadTime: 6, initialStock: 200 }));
+  products.push(new Product({ name: 'Canned vegetables', sku: 'CANNED-VEG-008', category: 'Canned & Packaged Goods', unitCost: 30, holdingCost: 0.04, orderingCost: 34, leadTime: 5, initialStock: 160 }));
+
+  products.push(new Product({ name: 'Cooking oil', sku: 'ESSENTIAL-OIL-009', category: 'Cooking Essentials', unitCost: 95, holdingCost: 0.07, orderingCost: 60, leadTime: 5, initialStock: 140 }));
+  products.push(new Product({ name: 'Sugar', sku: 'ESSENTIAL-SUGAR-010', category: 'Cooking Essentials', unitCost: 44, holdingCost: 0.05, orderingCost: 38, leadTime: 4, initialStock: 210 }));
+  products.push(new Product({ name: 'Salt', sku: 'ESSENTIAL-SALT-011', category: 'Cooking Essentials', unitCost: 12, holdingCost: 0.03, orderingCost: 20, leadTime: 4, initialStock: 280 }));
+  products.push(new Product({ name: 'Soy sauce', sku: 'ESSENTIAL-SOY-012', category: 'Cooking Essentials', unitCost: 24, holdingCost: 0.04, orderingCost: 28, leadTime: 5, initialStock: 190 }));
+  products.push(new Product({ name: 'Vinegar', sku: 'ESSENTIAL-VINEGAR-013', category: 'Cooking Essentials', unitCost: 20, holdingCost: 0.04, orderingCost: 25, leadTime: 4, initialStock: 170 }));
+
+  products.push(new Product({ name: 'Milk', sku: 'PERISH-MILK-014', category: 'Perishables', unitCost: 62, holdingCost: 0.12, orderingCost: 50, leadTime: 2, initialStock: 120 }));
+  products.push(new Product({ name: 'Eggs', sku: 'PERISH-EGGS-015', category: 'Perishables', unitCost: 14, holdingCost: 0.10, orderingCost: 22, leadTime: 2, initialStock: 240 }));
+  products.push(new Product({ name: 'Fresh meat', sku: 'PERISH-MEAT-016', category: 'Perishables', unitCost: 150, holdingCost: 0.18, orderingCost: 75, leadTime: 2, initialStock: 90 }));
+  products.push(new Product({ name: 'Vegetables', sku: 'PERISH-VEG-017', category: 'Perishables', unitCost: 26, holdingCost: 0.09, orderingCost: 30, leadTime: 2, initialStock: 150 }));
+
+  products.push(new Product({ name: 'Soap', sku: 'HOUSEHOLD-SOAP-018', category: 'Household Essentials', unitCost: 18, holdingCost: 0.03, orderingCost: 24, leadTime: 5, initialStock: 220 }));
+  products.push(new Product({ name: 'Shampoo', sku: 'HOUSEHOLD-SHAMPOO-019', category: 'Household Essentials', unitCost: 68, holdingCost: 0.05, orderingCost: 40, leadTime: 5, initialStock: 140 }));
+  products.push(new Product({ name: 'Detergent', sku: 'HOUSEHOLD-DETERGENT-020', category: 'Household Essentials', unitCost: 88, holdingCost: 0.06, orderingCost: 48, leadTime: 6, initialStock: 160 }));
+  products.push(new Product({ name: 'Tissue', sku: 'HOUSEHOLD-TISSUE-021', category: 'Household Essentials', unitCost: 36, holdingCost: 0.04, orderingCost: 26, leadTime: 4, initialStock: 200 }));
   renderProductList();
 }

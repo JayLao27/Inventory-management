@@ -80,8 +80,8 @@ export function renderResults(strategyResults) {
   // Demand vs fulfilled
   drawLineChart(document.getElementById('chart-demand'), {
     series: [
-      { label: 'Demand', data: ts.demand },
-      { label: 'Fulfilled', data: ts.fulfilled },
+      { label: 'Demand', data: ts.demand, color: '#fbbf24' },
+      { label: 'Fulfilled', data: ts.fulfilled, color: '#34d399' },
     ],
     yLabel: 'Units',
     area: false,
