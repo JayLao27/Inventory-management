@@ -278,6 +278,41 @@ select {
   margin-top: var(--sp-md);
 }
 
+body.modal-open {
+  overflow: hidden;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  display: grid;
+  place-items: center;
+  padding: var(--sp-md);
+}
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(4, 6, 14, 0.72);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.modal-panel {
+  position: relative;
+  z-index: 1;
+  width: min(680px, 100%);
+  max-height: calc(100vh - 2 * var(--sp-md));
+  overflow-y: auto;
+}
+
+.modal-form {
+  margin-top: 0;
+  background: rgba(10, 12, 24, 0.92);
+  border: 1px solid var(--border-glass-hover);
+}
+
 .hidden { display: none !important; }
 
 /* ---- ITEM LIST (products / strategies) ---- */
@@ -303,6 +338,17 @@ select {
 .item-row:hover { background: rgba(99, 102, 241, 0.08); }
 
 .item-row .item-name { font-weight: 500; color: var(--text-primary); }
+.item-row .item-tag {
+  display: inline-flex;
+  align-items: center;
+  margin-left: var(--sp-sm);
+  padding: 1px 8px;
+  border-radius: var(--radius-full);
+  background: rgba(99, 102, 241, 0.14);
+  color: var(--accent-primary);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
 .item-row .item-meta { color: var(--text-muted); font-size: var(--fs-xs); }
 
 .item-actions {
