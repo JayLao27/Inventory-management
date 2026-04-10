@@ -25,7 +25,7 @@ function getColor(i) {
  *
  * @param {HTMLCanvasElement} canvas
  * @param {object} opts
- * @param {Array<{label:string, data:number[]}>} opts.series
+ * @param {Array<{label:string, data:number[], color?:string}>} opts.series
  * @param {string[]} [opts.xLabels]
  * @param {string} [opts.yLabel]
  * @param {boolean} [opts.area]  – fill area under lines
@@ -126,7 +126,7 @@ export function drawLineChart(canvas, { series, xLabels, yLabel, area = false, t
 
   // draw series
   series.forEach((s, si) => {
-    const color = getColor(si);
+    const color = s.color || getColor(si);
     ctx.strokeStyle = color;
     ctx.lineWidth = 2;
     ctx.lineJoin = 'round';
@@ -166,7 +166,7 @@ export function drawLineChart(canvas, { series, xLabels, yLabel, area = false, t
     ctx.font = '10px Inter, sans-serif';
     let lx = ml;
     series.forEach((s, si) => {
-      const color = getColor(si);
+      const color = s.color || getColor(si);
       ctx.fillStyle = color;
       ctx.fillRect(lx, H - 10, 10, 3);
       ctx.fillStyle = '#9ca3c4';
