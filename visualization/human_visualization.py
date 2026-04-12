@@ -25,6 +25,10 @@ GREEN = (50, 200, 50)
 BLUE = (50, 100, 220)
 SHELF_COLOR = (139, 69, 19)
 ITEM_COLOR = (255, 165, 0)
+FLOOR_TOP = (220, 224, 230)
+FLOOR_BOTTOM = (200, 206, 214)
+BG_TOP = (245, 248, 252)
+BG_BOTTOM = (226, 233, 242)
 
 # ------------------------------------------------------------------
 # Human sprite (no external assets)
@@ -150,15 +154,43 @@ def draw_shelves(surface):
             pygame.draw.rect(surface, ITEM_COLOR, (item_x, shelf_y - 30, 25, 25), 0)
             pygame.draw.rect(surface, BLACK, (item_x, shelf_y - 30, 25, 25), 2)
 
-def draw_path(frame):
-    start_x = 150
-    end_x = 750
-    progress = (frame % 200) / 200
-    if progress < 0.5:
-        x = start_x + (end_x - start_x) * (progress * 2)
-    else:
-        x = end_x - (end_x - start_x) * ((progress - 0.5) * 2)
-    return x
+def draw_background(surface):
+    """Render a subtle vertical gradient and warehouse floor."""
+    for y in range(HEIGHT):
+        t = y / max(1, HEIGHT - 1)
+        color = (
+            int(BG_TOP[0] + (BG_BOTTOM[0] - BG_TOP[0]) * t),
+            int(BG_TOP[1] + (BG_BOTTOM[1] - BG_TOP[1]) * t),
+            int(BG_TOP[2] + (BG_BOTTOM[2] - BG_TOP[2]) * t),
+        )
+        pygame.draw.line(surface, color, (0, y), (WIDTH, y))
+
+    floor_y = 560
+    floor_height = HEIGHT - floor_y
+    for i in range(floor_height):
+        t = i / max(1, floor_height - 1)
+        color = (
+            int(FLOOR_TOP[0] + (FLOOR_BOTTOM[0] - FLOOR_TOP[0]) * t),
+            int(FLOOR_TOP[1] + (FLOOR_BOTTOM[1] - FLOOR_TOP[1]) * t),
+            int(FLOOR_TOP[2] + (FLOOR_BOTTOM[2] - FLOOR_TOP[2]) * t),
+        )
+        pygame.draw.line(surface, color, (0, floor_y + i), (WIDTH, floor_y + i))
+
+    pygame.draw.line(surface, (165, 172, 182), (0, floor_y), (WIDTH, floor_y), 2)
+
+
+def draw_pick_flash(surface, x, y, timer_ms):
+    """Short-lived pickup sparkle feedback."""
+    if timer_ms <= 0:
+        return
+    alpha = max(0, min(255, int(255 * (timer_ms / 280))))
+    spark = pygame.Surface((40, 40), pygame.SRCALPHA)
+    color = (255, 215, 90, alpha)
+    pygame.draw.line(spark, color, (20, 4), (20, 36), 3)
+    pygame.draw.line(spark, color, (4, 20), (36, 20), 3)
+    pygame.draw.line(spark, color, (8, 8), (32, 32), 2)
+    pygame.draw.line(spark, color, (32, 8), (8, 32), 2)
+    surface.blit(spark, (int(x - 20), int(y - 20)))
 
 
 def main():
@@ -167,13 +199,22 @@ def main():
     paused = False
     items_picked = 0
     human = HumanSprite()
-    prev_worker_x = None
+    start_x = 150
+    end_x = 750
+    worker_x = float(start_x)
+    worker_dir = 1
+    speed_px_per_sec = 190.0
+    pick_points = [250, 350, 450, 550, 650]
+    pick_cooldown_ms = 0
+    pick_timer_ms = 0
+    pick_flash_ms = 0
+    reached_at = None
 
     while running:
         dt = clock.tick(60)
+        dt_sec = dt / 1000.0
         if not paused:
             frame += 1
-        human.update(dt)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -184,26 +225,69 @@ def main():
                 elif event.key == pygame.K_q:
                     running = False
 
-        # Count items picked every 100 frames
-        if not paused and frame % 100 == 0:
-            items_picked += 1
+        if not paused:
+            if pick_cooldown_ms > 0:
+                pick_cooldown_ms = max(0, pick_cooldown_ms - dt)
+            if pick_flash_ms > 0:
+                pick_flash_ms = max(0, pick_flash_ms - dt)
 
-        screen.fill(WHITE)
+            is_picking = pick_timer_ms > 0
+            if is_picking:
+                pick_timer_ms = max(0, pick_timer_ms - dt)
+                human.update(max(16, dt // 3))
+                if pick_timer_ms == 0:
+                    items_picked += 1
+                    pick_flash_ms = 280
+                    pick_cooldown_ms = 500
+            else:
+                next_x = worker_x + worker_dir * speed_px_per_sec * dt_sec
+                if next_x <= start_x:
+                    worker_x = float(start_x)
+                    worker_dir = 1
+                elif next_x >= end_x:
+                    worker_x = float(end_x)
+                    worker_dir = -1
+                else:
+                    worker_x = next_x
+
+                human.update(dt)
+
+                if pick_cooldown_ms == 0:
+                    for point in pick_points:
+                        if abs(worker_x - point) < 6:
+                            pick_timer_ms = 600
+                            reached_at = point
+                            break
+
+        draw_background(screen)
         draw_shelves(screen)
 
-        worker_x = draw_path(frame)
-        facing_right = True if prev_worker_x is None else worker_x >= prev_worker_x
-        prev_worker_x = worker_x
-        reaching = 300 < worker_x < 500
-        human.render(screen, worker_x, 520, facing_right=facing_right, reaching=reaching)
+        facing_right = worker_dir >= 0
+        reaching = pick_timer_ms > 0
+        bob = math.sin(frame * 0.34) * 2.5 if not reaching else 0
+
+        shadow_w = 46 if reaching else 38
+        pygame.draw.ellipse(screen, (70, 70, 80, 70), (int(worker_x - shadow_w // 2), 548, shadow_w, 14))
+        human.render(screen, worker_x, 520 + bob, facing_right=facing_right, reaching=reaching)
+
+        if reaching:
+            box_x = worker_x + (36 if facing_right else -58)
+            pygame.draw.rect(screen, (205, 150, 80), (int(box_x), 468, 26, 22), border_radius=3)
+            pygame.draw.rect(screen, (120, 80, 40), (int(box_x), 468, 26, 22), 2, border_radius=3)
+
+        if pick_flash_ms > 0 and reached_at is not None:
+            draw_pick_flash(screen, reached_at, 315, pick_flash_ms)
 
         # UI
         status_text = font.render("Warehouse Worker Animation", True, GREEN)
         frame_text = font.render(f"Frame: {frame}", True, BLACK)
         items_text = font.render(f"Items Picked: {items_picked}", True, BLACK)
+        mode = "Picking" if reaching else ("Paused" if paused else "Walking")
+        mode_text = small_font.render(f"State: {mode}", True, BLUE)
         screen.blit(status_text, (20, 20))
         screen.blit(frame_text, (20, 60))
         screen.blit(items_text, (20, 100))
+        screen.blit(mode_text, (20, 136))
         inst_text = small_font.render("SPACE pause | Q quit", True, GRAY)
         screen.blit(inst_text, (20, HEIGHT - 40))
 
