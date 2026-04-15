@@ -30,10 +30,6 @@ FLOOR_BOTTOM = (200, 206, 214)
 BG_TOP = (245, 248, 252)
 BG_BOTTOM = (226, 233, 242)
 
-# ------------------------------------------------------------------
-# Human sprite (no external assets)
-# ------------------------------------------------------------------
-
 def build_sprite_frames():
     """Prebuild walking and reaching frames on Surfaces for a more realistic look."""
     frames = []
