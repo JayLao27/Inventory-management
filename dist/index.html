@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
-  <script type="module" crossorigin src="/assets/index-CguQuAkH.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-FZLZw16v.css">
+  <script type="module" crossorigin src="/assets/index-BQiqw0ZH.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-kTM4aGbG.css">
 </head>
 <body>
   <!-- ============ Top Navigation ============ -->
@@ -27,10 +27,7 @@
       <span class="brand-name">InvSim</span>
     </div>
     <nav id="main-nav">
-      <button class="nav-tab active" data-tab="configure">
-        <span class="tab-icon">⚙</span> Configure
-      </button>
-      <button class="nav-tab" data-tab="simulate">
+      <button class="nav-tab active" data-tab="simulate">
         <span class="tab-icon">▶</span> Simulate
       </button>
       <button class="nav-tab" data-tab="results">
@@ -41,74 +38,6 @@
 
   <!-- ============ Main Content ============ -->
   <main id="app-main">
-
-    <!-- -------- CONFIGURE TAB -------- -->
-    <section id="tab-configure" class="tab-panel active">
-      <div class="panel-header">
-        <h1>Grocery Simulation Configuration</h1>
-        <p class="subtitle">Set up grocery items, storage capacity, demand patterns, and reorder policies.</p>
-      </div>
-
-      <div class="config-grid">
-        <!-- Product Card -->
-        <div class="glass-card" id="product-config-card">
-          <div class="card-title"><span class="card-icon">📦</span> Grocery Catalog</div>
-          <div id="product-list" class="item-list"></div>
-          <button id="btn-add-product" class="btn btn-outline">+ Add Grocery Item</button>
-        </div>
-
-        <!-- Warehouse Card -->
-        <div class="glass-card" id="warehouse-config-card">
-          <div class="card-title"><span class="card-icon">🏭</span> Grocery Storage</div>
-          <label>Storage Name <input id="wh-name" type="text" value="Main Storage" /></label>
-          <label>Max Capacity (units) <input id="wh-capacity" type="number" min="1" value="5000" /></label>
-        </div>
-
-        <!-- Demand Pattern Card -->
-        <div class="glass-card" id="demand-config-card">
-          <div class="card-title"><span class="card-icon">📈</span> Demand Pattern</div>
-          <label>
-            Pattern Type
-            <select id="demand-type">
-              <option value="constant">Constant</option>
-              <option value="seasonal">Seasonal (Sine Wave)</option>
-              <option value="trending">Trending (Linear Growth)</option>
-              <option value="random-walk">Random Walk</option>
-            </select>
-          </label>
-          <div class="form-row">
-            <label>Base Demand / day <input id="demand-base" type="number" min="0" value="30" /></label>
-            <label>Variance (σ) <input id="demand-variance" type="number" min="0" step="0.1" value="5" /></label>
-          </div>
-          <div id="demand-extra-fields"></div>
-          <canvas id="demand-preview" width="380" height="140"></canvas>
-        </div>
-
-        <!-- Policy Card -->
-        <div class="glass-card" id="policy-config-card">
-          <div class="card-title"><span class="card-icon">📋</span> Reorder Policy</div>
-          <label>
-            Policy
-            <select id="policy-type">
-              <option value="rop">Fixed Reorder Point (ROP)</option>
-              <option value="eoq">Economic Order Quantity (EOQ)</option>
-              <option value="jit">Just-In-Time (JIT)</option>
-              <option value="periodic">Periodic Review</option>
-            </select>
-          </label>
-          <div id="policy-params"></div>
-        </div>
-
-        <!-- Simulation Settings Card -->
-        <div class="glass-card" id="sim-settings-card">
-          <div class="card-title"><span class="card-icon">🔧</span> Simulation Settings</div>
-          <div class="form-row">
-            <label>Duration (days) <input id="sim-duration" type="number" min="30" max="730" value="180" /></label>
-            <label>Monte Carlo Runs <input id="sim-runs" type="number" min="1" max="1000" value="50" /></label>
-          </div>
-        </div>
-      </div>
-    </section>
 
     <!-- Product Form Modal -->
     <div id="product-form-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="product-form-title">
@@ -137,20 +66,65 @@
     </div>
 
     <!-- -------- SIMULATE TAB -------- -->
-    <section id="tab-simulate" class="tab-panel">
+    <section id="tab-simulate" class="tab-panel active">
       <div class="panel-header">
-        <h1>Run Simulation</h1>
-        <p class="subtitle">Execute Monte Carlo simulations and compare strategies.</p>
+        <h1>Simulation Workspace</h1>
+        <p class="subtitle">Configure inputs, run day-by-day process flow, then build strategy comparisons.</p>
       </div>
 
-      <div class="sim-controls glass-card">
-        <div class="sim-summary" id="sim-summary"></div>
-        <button id="btn-run-sim" class="btn btn-primary btn-lg pulse-btn">
-          <span class="btn-icon">▶</span> Run Simulation
-        </button>
-        <div id="sim-progress-wrap" class="hidden">
-          <div class="progress-bar"><div id="sim-progress" class="progress-fill"></div></div>
-          <p id="sim-progress-label">Running…</p>
+      <div class="config-grid">
+        <div class="glass-card" id="product-config-card">
+          <div class="card-title"><span class="card-icon">📦</span> Grocery Catalog</div>
+          <div id="product-list" class="item-list"></div>
+          <button id="btn-add-product" class="btn btn-outline">+ Add Grocery Item</button>
+        </div>
+
+        <div class="glass-card" id="warehouse-config-card">
+          <div class="card-title"><span class="card-icon">🏭</span> Grocery Storage</div>
+          <label>Storage Name <input id="wh-name" type="text" value="Main Storage" /></label>
+          <label>Max Capacity (units) <input id="wh-capacity" type="number" min="1" value="5000" /></label>
+        </div>
+
+        <div class="glass-card" id="demand-config-card">
+          <div class="card-title"><span class="card-icon">📈</span> Demand Pattern</div>
+          <label>
+            Pattern Type
+            <select id="demand-type">
+              <option value="constant">Constant</option>
+              <option value="seasonal">Seasonal (Sine Wave)</option>
+              <option value="trending">Trending (Linear Growth)</option>
+              <option value="random-walk">Random Walk</option>
+            </select>
+          </label>
+          <div class="form-row">
+            <label>Base Demand / day <input id="demand-base" type="number" min="0" value="30" /></label>
+            <label>Variance (σ) <input id="demand-variance" type="number" min="0" step="0.1" value="5" /></label>
+          </div>
+          <div id="demand-extra-fields"></div>
+          <canvas id="demand-preview" width="380" height="140"></canvas>
+        </div>
+
+        <div class="glass-card" id="policy-config-card">
+          <div class="card-title"><span class="card-icon">📋</span> Reorder Policy</div>
+          <label>
+            Policy
+            <select id="policy-type">
+              <option value="rop">Fixed Reorder Point (ROP)</option>
+              <option value="eoq">Economic Order Quantity (EOQ)</option>
+              <option value="jit">Just-In-Time (JIT)</option>
+              <option value="periodic">Periodic Review</option>
+            </select>
+          </label>
+          <div id="policy-params"></div>
+        </div>
+
+        <div class="glass-card" id="sim-settings-card">
+          <div class="card-title"><span class="card-icon">🔧</span> Simulation Settings</div>
+          <div class="form-row">
+            <label>Duration (days) <input id="sim-duration" type="number" min="30" max="730" value="180" /></label>
+            <label>Monte Carlo Runs <input id="sim-runs" type="number" min="1" max="1000" value="50" /></label>
+          </div>
+          <div id="sim-summary" class="sim-summary"></div>
         </div>
       </div>
 
@@ -161,38 +135,52 @@
         <div class="flow-chart structured" id="process-flow-chart" aria-label="Inventory process flow">
           <div id="flow-truck" aria-hidden="true">🚚</div>
 
+          <div class="flow-lane-label top">Main Day Flow</div>
+
           <div class="flow-row top-row">
             <div class="flow-node active" data-stage="start-day">Start Of Day</div>
-            <span class="flow-arrow">→</span>
+            <div class="flow-link" aria-hidden="true"></div>
             <div class="flow-node" data-stage="daily-sales">Daily Sales</div>
-            <span class="flow-arrow">→</span>
+            <div class="flow-link" aria-hidden="true"></div>
             <div class="flow-node decision" data-stage="check-inventory">Check Inventory</div>
-            <span class="flow-arrow">→</span>
+            <div class="flow-link decision-link true-path" aria-hidden="true">
+              <span class="decision-chip"><span class="tri-up">▲</span> True</span>
+            </div>
             <div class="flow-node" data-stage="reduce-inventory">Reduce Inventory</div>
-            <span class="flow-arrow">→</span>
+            <div class="flow-link" aria-hidden="true"></div>
             <div class="flow-node decision" data-stage="reorder-check">Stock Reorder Point?</div>
-            <span class="flow-arrow">→</span>
+            <div class="flow-link decision-link true-path" aria-hidden="true">
+              <span class="decision-chip"><span class="tri-up">▲</span> True</span>
+            </div>
             <div class="flow-node accent" data-stage="create-po">Create Purchase Order</div>
-            <span class="flow-arrow">→</span>
+            <div class="flow-link" aria-hidden="true"></div>
             <div class="flow-node" data-stage="place-order">Place Order</div>
-            <span class="flow-arrow">→</span>
+            <div class="flow-link" aria-hidden="true"></div>
             <div class="flow-node round" data-stage="supplier-lead">Supplier Lead Time</div>
           </div>
+
+          <div class="flow-lane-label bottom">Loss, Totals, and Reorder Continuation</div>
 
           <div class="flow-row branch-row">
             <div class="flow-spacer"></div>
             <div class="flow-spacer"></div>
             <div class="flow-node" data-stage="lost-customer">Lost Customer</div>
-            <span class="flow-arrow">→</span>
+            <div class="flow-link" aria-hidden="true"></div>
             <div class="flow-node neutral" data-stage="tally-lost">Tally Amount Lost</div>
-            <span class="flow-arrow">→</span>
+            <div class="flow-link" aria-hidden="true"></div>
             <div class="flow-node" data-stage="total">Total</div>
-            <span class="flow-arrow">→</span>
-            <div class="flow-node" data-stage="end-day">End Of Day</div>
-            <span class="flow-arrow">→</span>
-            <div class="flow-node" data-stage="trigger-reorder">Trigger Reorder</div>
-            <span class="flow-arrow">→</span>
+            <div class="flow-link" aria-hidden="true"></div>
+            <div class="flow-node end-day-node" data-stage="end-day">End Of Day</div>
+            <div class="flow-gap" aria-hidden="true"></div>
             <div class="flow-node" data-stage="stock-received">Stock Received</div>
+            <div class="flow-link" aria-hidden="true"></div>
+            <div class="flow-node" data-stage="trigger-reorder">Trigger Reorder</div>
+          </div>
+
+          <div class="flow-bridges" aria-hidden="true">
+            <span class="flow-bridge b-check-loss"><span class="bridge-label false"><span class="tri-down">▼</span> False</span></span>
+            <span class="flow-bridge b-reorder-total"><span class="bridge-label false"><span class="tri-down">▼</span> False</span></span>
+            <span class="flow-bridge b-supplier-trigger"></span>
           </div>
         </div>
 
@@ -251,6 +239,7 @@
       <div class="glass-card" id="comparison-builder">
         <div class="card-title"><span class="card-icon">⚖️</span> Strategy Comparison</div>
         <p class="hint">Add additional strategies to compare side-by-side.</p>
+        <p class="hint" id="strategy-dependency-note">Initialize Process Flow first to unlock strategy comparison.</p>
         <div id="strategy-list" class="item-list"></div>
         <button id="btn-add-strategy" class="btn btn-outline">+ Add Strategy</button>
 

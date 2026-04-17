@@ -43,3 +43,34 @@ Make sure you have [Node.js](https://nodejs.org/) installed on your machine.
 - Vanilla JavaScript (ES Modules)
 - CSS for styling
 - [Vite](https://vitejs.dev/) for fast development and bundling
+
+## Process Flow (Cards to Simulation)
+
+```mermaid
+flowchart LR
+   A[Configure Cards\nProducts, Warehouse, Demand, Policy, Settings]
+   B[Initialize Playback]
+   C[Receive Pending Orders]
+   D[Apply Day Demand]
+   E[Compute Holding and Stockout Costs]
+   F[Policy Reorder Decision]
+   G[Queue Purchase Orders by Lead Time]
+   H{More Days?}
+   I[Advance to Next Day]
+   J[Simulation Complete]
+
+   A --> B --> C --> D --> E --> F --> G --> H
+   H -- Yes --> I --> C
+   H -- No --> J
+```
+
+## Day-by-Day Playback Controls
+
+On the **Simulate** tab, the **Process Flow + Day Playback** card now supports:
+
+- `Initialize Playback`: prepares a single day-by-day run using current card settings.
+- `Next Day (Manual)`: advances exactly one simulation day each click.
+- `Start Auto Day`: runs days continuously until complete (or paused).
+- `Auto Speed`: choose `0.5x`, `1x`, `2x`, `4x`, or `8x` to control playback speed.
+
+This playback mode is for interactive understanding of the process. The existing **Run Simulation** button still executes Monte Carlo runs for aggregated strategy results.
