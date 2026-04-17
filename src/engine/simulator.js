@@ -9,6 +9,170 @@ import { generateDemand } from './demand.js';
 import { POLICIES } from './policies.js';
 
 /**
+ * Build a mutable simulation state for interactive day-by-day playback.
+ *
+ * @param {object} opts
+ * @param {import('./product.js').Product} opts.product
+ * @param {import('./warehouse.js').Warehouse} opts.warehouse
+ * @param {string} opts.demandType
+ * @param {number} opts.demandBase
+ * @param {number} opts.demandVariance
+ * @param {object} opts.demandExtra
+ * @param {string} opts.policyKey
+ * @param {object} opts.policyParams
+ * @param {number} opts.days
+ */
+export function createPlaybackSimulation({
+  product,
+  warehouse,
+  demandType,
+  demandBase,
+  demandVariance,
+  demandExtra,
+  policyKey,
+  policyParams,
+  days,
+}) {
+  const policyFn = POLICIES[policyKey];
+  if (!policyFn) throw new Error(`Unknown policy: ${policyKey}`);
+
+  const demand = generateDemand(demandType, days, demandBase, demandVariance, demandExtra);
+
+  return {
+    product,
+    warehouse,
+    policyFn,
+    policyKey,
+    policyParams,
+    demand,
+    demandBase,
+    days,
+    day: 0,
+    done: false,
+    stock: product.initialStock,
+    totalHoldingCost: 0,
+    totalOrderingCost: 0,
+    totalStockoutCost: 0,
+    stockoutDays: 0,
+    totalDemand: 0,
+    totalFulfilled: 0,
+    ordersPlaced: 0,
+    pendingQueue: [],
+    stockSeries: [],
+    demandSeries: [],
+    fulfilledSeries: [],
+    costSeries: [],
+  };
+}
+
+/**
+ * Advance interactive playback by one day.
+ *
+ * @param {ReturnType<typeof createPlaybackSimulation>} state
+ */
+export function stepPlaybackDay(state) {
+  if (state.done || state.day >= state.days) {
+    state.done = true;
+    return {
+      done: true,
+      day: state.day,
+      days: state.days,
+      stock: state.stock,
+      pendingOrders: state.pendingQueue.reduce((sum, o) => sum + o.qty, 0),
+      receivedQty: 0,
+      demand: 0,
+      fulfilled: 0,
+      unmet: 0,
+      placedOrderQty: 0,
+      totalCost: state.totalHoldingCost + state.totalOrderingCost + state.totalStockoutCost,
+      fillRate: state.totalDemand > 0 ? state.totalFulfilled / state.totalDemand : 1,
+      stockoutDays: state.stockoutDays,
+      ordersPlaced: state.ordersPlaced,
+    };
+  }
+
+  const day = state.day;
+
+  // 1) Receive due orders.
+  let receivedQty = 0;
+  for (let i = state.pendingQueue.length - 1; i >= 0; i--) {
+    if (state.pendingQueue[i].arriveDay <= day) {
+      const incoming = state.pendingQueue[i].qty;
+      const space = state.warehouse.availableSpace(new Map([['p', state.stock]]));
+      const accepted = Math.min(incoming, space);
+      state.stock += accepted;
+      receivedQty += accepted;
+      state.pendingQueue.splice(i, 1);
+    }
+  }
+
+  // 2) Process demand.
+  const dayDemand = state.demand[day] ?? 0;
+  state.totalDemand += dayDemand;
+  const fulfilled = Math.min(dayDemand, state.stock);
+  state.totalFulfilled += fulfilled;
+  const unmet = dayDemand - fulfilled;
+  state.stock -= fulfilled;
+
+  if (unmet > 0) {
+    state.stockoutDays += 1;
+    state.totalStockoutCost += unmet * state.product.unitCost * 1.5;
+  }
+
+  // 3) Holding cost.
+  const dayHoldingCost = state.stock * state.product.holdingCost;
+  state.totalHoldingCost += dayHoldingCost;
+
+  // 4) Reorder decision.
+  const pendingOrderQty = state.pendingQueue.reduce((sum, o) => sum + o.qty, 0);
+  const avgDemand = day > 0 ? state.totalDemand / (day + 1) : state.demandBase;
+  const orderQty = state.policyFn({
+    day,
+    stock: state.stock,
+    product: state.product,
+    avgDemand,
+    demandHistory: state.demand.slice(0, day + 1),
+    pendingOrders: pendingOrderQty,
+    params: state.policyParams,
+  });
+
+  let placedOrderQty = 0;
+  if (orderQty > 0) {
+    state.ordersPlaced += 1;
+    state.totalOrderingCost += state.product.orderingCost;
+    state.pendingQueue.push({ arriveDay: day + state.product.leadTime, qty: orderQty });
+    placedOrderQty = orderQty;
+  }
+
+  // 5) Record time-series + move to next day.
+  state.stockSeries.push(state.stock);
+  state.demandSeries.push(dayDemand);
+  state.fulfilledSeries.push(fulfilled);
+  state.costSeries.push(dayHoldingCost);
+  state.day += 1;
+  state.done = state.day >= state.days;
+
+  const totalCost = state.totalHoldingCost + state.totalOrderingCost + state.totalStockoutCost;
+
+  return {
+    done: state.done,
+    day: state.day,
+    days: state.days,
+    stock: state.stock,
+    pendingOrders: state.pendingQueue.reduce((sum, o) => sum + o.qty, 0),
+    receivedQty,
+    demand: dayDemand,
+    fulfilled,
+    unmet,
+    placedOrderQty,
+    totalCost,
+    fillRate: state.totalDemand > 0 ? state.totalFulfilled / state.totalDemand : 1,
+    stockoutDays: state.stockoutDays,
+    ordersPlaced: state.ordersPlaced,
+  };
+}
+
+/**
  * Run a single simulation for one product under one policy.
  *
  * @param {object} opts
