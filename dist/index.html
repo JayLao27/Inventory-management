@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
-  <script type="module" crossorigin src="/assets/index-B0EMO9y3.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-ugwBCdsE.css">
+  <script type="module" crossorigin src="/assets/index-CguQuAkH.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-FZLZw16v.css">
 </head>
 <body>
   <!-- ============ Top Navigation ============ -->
@@ -152,6 +152,99 @@
           <div class="progress-bar"><div id="sim-progress" class="progress-fill"></div></div>
           <p id="sim-progress-label">Running…</p>
         </div>
+      </div>
+
+      <div class="glass-card" id="flow-playback-card">
+        <div class="card-title"><span class="card-icon">🧭</span> Process Flow + Day Playback</div>
+        <p class="hint">Use this to walk through the simulation one day at a time, or run days automatically with speed control.</p>
+
+        <div class="flow-chart structured" id="process-flow-chart" aria-label="Inventory process flow">
+          <div id="flow-truck" aria-hidden="true">🚚</div>
+
+          <div class="flow-row top-row">
+            <div class="flow-node active" data-stage="start-day">Start Of Day</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node" data-stage="daily-sales">Daily Sales</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node decision" data-stage="check-inventory">Check Inventory</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node" data-stage="reduce-inventory">Reduce Inventory</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node decision" data-stage="reorder-check">Stock Reorder Point?</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node accent" data-stage="create-po">Create Purchase Order</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node" data-stage="place-order">Place Order</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node round" data-stage="supplier-lead">Supplier Lead Time</div>
+          </div>
+
+          <div class="flow-row branch-row">
+            <div class="flow-spacer"></div>
+            <div class="flow-spacer"></div>
+            <div class="flow-node" data-stage="lost-customer">Lost Customer</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node neutral" data-stage="tally-lost">Tally Amount Lost</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node" data-stage="total">Total</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node" data-stage="end-day">End Of Day</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node" data-stage="trigger-reorder">Trigger Reorder</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-node" data-stage="stock-received">Stock Received</div>
+          </div>
+        </div>
+
+        <div class="flow-visuals">
+          <div class="flow-visual-card">
+            <div class="flow-visual-title">Start Of Day Demand (Customers)</div>
+            <div id="customer-stream" class="customer-stream" aria-live="polite"></div>
+          </div>
+
+          <div class="flow-visual-card">
+            <div class="flow-visual-title">Reduce Inventory (Items Picked Per Day)</div>
+            <div id="inventory-rack" class="inventory-rack" aria-live="polite"></div>
+            <div id="served-people" class="served-people"></div>
+          </div>
+
+          <div class="flow-visual-card">
+            <div class="flow-visual-title">Purchase Order Delivery</div>
+            <div class="po-lane">
+              <div class="po-end">PO</div>
+              <div id="po-truck" class="po-truck">🚚</div>
+              <div class="po-line"></div>
+              <div class="po-end">📦</div>
+            </div>
+            <p id="po-delivery-status" class="po-delivery-status">No purchase order for this day yet.</p>
+          </div>
+        </div>
+
+        <div class="playback-controls-row">
+          <label>
+            Product
+            <select id="playback-product"></select>
+          </label>
+          <label>
+            Auto Speed
+            <select id="playback-speed">
+              <option value="0.5x">0.5x (Slow)</option>
+              <option value="1x" selected>1x (Normal)</option>
+              <option value="2x">2x</option>
+              <option value="4x">4x</option>
+              <option value="8x">8x</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="playback-button-row">
+          <button id="btn-init-playback" class="btn btn-outline">Initialize Playback</button>
+          <button id="btn-next-day" class="btn btn-primary">Next Day (Manual)</button>
+          <button id="btn-auto-day" class="btn btn-outline">Start Auto Day</button>
+        </div>
+
+        <div id="playback-status" class="playback-status"></div>
+        <div id="playback-log" class="playback-log" aria-live="polite"></div>
       </div>
 
       <!-- Strategy Comparison Builder -->
