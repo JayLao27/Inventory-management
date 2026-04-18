@@ -79,7 +79,7 @@ function renderProductList() {
       <div>
         <span class="item-name">${p.name}</span>
         ${categoryLabel}
-        <span class="item-meta"> &mdash; ${p.sku} | $${p.unitCost}/unit | LT: ${p.leadTime}d | Stock: ${p.initialStock}</span>
+        <span class="item-meta"> &mdash; ${p.sku} | ₱${p.unitCost}/unit | LT: ${p.leadTime}d | Stock: ${p.initialStock}</span>
       </div>
       <div class="item-actions">
         <button type="button" class="btn-edit" data-idx="${i}" title="Edit">✏️</button>
@@ -213,31 +213,7 @@ export function initConfigPanel() {
   document.getElementById('demand-variance').addEventListener('input', updateDemandPreview);
   renderDemandExtraFields();
 
-  // Seed the catalog with the requested grocery list
+  // Seed the catalog with only Rice by default
   products.push(new Product({ name: 'Rice', sku: 'FOOD-RICE-001', category: 'Staple Foods', unitCost: 48, holdingCost: 0.05, orderingCost: 55, leadTime: 4, initialStock: 600 }));
-  products.push(new Product({ name: 'Bread', sku: 'FOOD-BREAD-002', category: 'Staple Foods', unitCost: 28, holdingCost: 0.08, orderingCost: 35, leadTime: 2, initialStock: 180 }));
-  products.push(new Product({ name: 'Instant noodles', sku: 'FOOD-NOODLES-003', category: 'Staple Foods', unitCost: 18, holdingCost: 0.04, orderingCost: 30, leadTime: 5, initialStock: 320 }));
-  products.push(new Product({ name: 'Flour', sku: 'FOOD-FLOUR-004', category: 'Staple Foods', unitCost: 36, holdingCost: 0.05, orderingCost: 40, leadTime: 4, initialStock: 220 }));
-
-  products.push(new Product({ name: 'Sardines', sku: 'CANNED-SARDINES-005', category: 'Canned & Packaged Goods', unitCost: 22, holdingCost: 0.04, orderingCost: 32, leadTime: 6, initialStock: 260 }));
-  products.push(new Product({ name: 'Corned beef', sku: 'CANNED-CORNBEEF-006', category: 'Canned & Packaged Goods', unitCost: 58, holdingCost: 0.06, orderingCost: 45, leadTime: 6, initialStock: 180 }));
-  products.push(new Product({ name: 'Tuna', sku: 'CANNED-TUNA-007', category: 'Canned & Packaged Goods', unitCost: 52, holdingCost: 0.05, orderingCost: 42, leadTime: 6, initialStock: 200 }));
-  products.push(new Product({ name: 'Canned vegetables', sku: 'CANNED-VEG-008', category: 'Canned & Packaged Goods', unitCost: 30, holdingCost: 0.04, orderingCost: 34, leadTime: 5, initialStock: 160 }));
-
-  products.push(new Product({ name: 'Cooking oil', sku: 'ESSENTIAL-OIL-009', category: 'Cooking Essentials', unitCost: 95, holdingCost: 0.07, orderingCost: 60, leadTime: 5, initialStock: 140 }));
-  products.push(new Product({ name: 'Sugar', sku: 'ESSENTIAL-SUGAR-010', category: 'Cooking Essentials', unitCost: 44, holdingCost: 0.05, orderingCost: 38, leadTime: 4, initialStock: 210 }));
-  products.push(new Product({ name: 'Salt', sku: 'ESSENTIAL-SALT-011', category: 'Cooking Essentials', unitCost: 12, holdingCost: 0.03, orderingCost: 20, leadTime: 4, initialStock: 280 }));
-  products.push(new Product({ name: 'Soy sauce', sku: 'ESSENTIAL-SOY-012', category: 'Cooking Essentials', unitCost: 24, holdingCost: 0.04, orderingCost: 28, leadTime: 5, initialStock: 190 }));
-  products.push(new Product({ name: 'Vinegar', sku: 'ESSENTIAL-VINEGAR-013', category: 'Cooking Essentials', unitCost: 20, holdingCost: 0.04, orderingCost: 25, leadTime: 4, initialStock: 170 }));
-
-  products.push(new Product({ name: 'Milk', sku: 'PERISH-MILK-014', category: 'Perishables', unitCost: 62, holdingCost: 0.12, orderingCost: 50, leadTime: 2, initialStock: 120 }));
-  products.push(new Product({ name: 'Eggs', sku: 'PERISH-EGGS-015', category: 'Perishables', unitCost: 14, holdingCost: 0.10, orderingCost: 22, leadTime: 2, initialStock: 240 }));
-  products.push(new Product({ name: 'Fresh meat', sku: 'PERISH-MEAT-016', category: 'Perishables', unitCost: 150, holdingCost: 0.18, orderingCost: 75, leadTime: 2, initialStock: 90 }));
-  products.push(new Product({ name: 'Vegetables', sku: 'PERISH-VEG-017', category: 'Perishables', unitCost: 26, holdingCost: 0.09, orderingCost: 30, leadTime: 2, initialStock: 150 }));
-
-  products.push(new Product({ name: 'Soap', sku: 'HOUSEHOLD-SOAP-018', category: 'Household Essentials', unitCost: 18, holdingCost: 0.03, orderingCost: 24, leadTime: 5, initialStock: 220 }));
-  products.push(new Product({ name: 'Shampoo', sku: 'HOUSEHOLD-SHAMPOO-019', category: 'Household Essentials', unitCost: 68, holdingCost: 0.05, orderingCost: 40, leadTime: 5, initialStock: 140 }));
-  products.push(new Product({ name: 'Detergent', sku: 'HOUSEHOLD-DETERGENT-020', category: 'Household Essentials', unitCost: 88, holdingCost: 0.06, orderingCost: 48, leadTime: 6, initialStock: 160 }));
-  products.push(new Product({ name: 'Tissue', sku: 'HOUSEHOLD-TISSUE-021', category: 'Household Essentials', unitCost: 36, holdingCost: 0.04, orderingCost: 26, leadTime: 4, initialStock: 200 }));
   renderProductList();
 }

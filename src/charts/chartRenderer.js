@@ -232,7 +232,7 @@ export function drawBarChart(canvas, { categories, groups, yLabel, title }) {
     ctx.moveTo(ml, y);
     ctx.lineTo(W - mr, y);
     ctx.stroke();
-    ctx.fillText('$' + formatNum(val), ml - 6, y + 3);
+    ctx.fillText(`${yLabel || ''}${formatNum(val)}`, ml - 6, y + 3);
   }
 
   // bars

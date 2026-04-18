@@ -14,11 +14,84 @@ let playbackTimer = null;
 let playbackStepping = false;
 let autoPlaybackEnabled = false;
 let playbackBaseStock = 1;
+let editingStrategyIndex = -1;
+const PLAYBACK_ACTION_BUTTON_IDS = ['btn-init-playback', 'btn-next-day', 'btn-auto-day', 'btn-skip-period'];
+
+function buildPresetStrategies() {
+  const presets = [];
+
+  // ROP variants (12)
+  const ropConfigs = [
+    { label: 'ROP 1', reorderPoint: 45, orderQty: 180 },
+    { label: 'ROP 2', reorderPoint: 70, orderQty: 300 },
+    { label: 'ROP 3', reorderPoint: 55, orderQty: 220 },
+    { label: 'ROP 4', reorderPoint: 60, orderQty: 240 },
+    { label: 'ROP 5', reorderPoint: 65, orderQty: 260 },
+    { label: 'ROP 6', reorderPoint: 75, orderQty: 320 },
+    { label: 'ROP 7', reorderPoint: 80, orderQty: 340 },
+    { label: 'ROP 8', reorderPoint: 85, orderQty: 360 },
+    { label: 'ROP 9', reorderPoint: 90, orderQty: 380 },
+    { label: 'ROP 10', reorderPoint: 95, orderQty: 400 },
+    { label: 'ROP 11', reorderPoint: 50, orderQty: 280 },
+    { label: 'ROP 12', reorderPoint: 100, orderQty: 420 },
+  ];
+  ropConfigs.forEach((cfg) => {
+    presets.push({
+      label: cfg.label,
+      policyKey: 'rop',
+      policyParams: { reorderPoint: cfg.reorderPoint, orderQty: cfg.orderQty },
+    });
+  });
+
+  // EOQ variants (10)
+  [0.8, 1.0, 1.2, 1.35, 1.5, 1.65, 1.8, 2.0, 2.3, 2.6].forEach((sf, idx) => {
+    presets.push({
+      label: `EOQ ${idx + 1}`,
+      policyKey: 'eoq',
+      policyParams: { safetyFactor: sf },
+    });
+  });
+
+  // JIT variants (9)
+  [0, 1, 2, 3, 4, 5, 6, 7, 8].forEach((bufferDays, idx) => {
+    presets.push({
+      label: `JIT ${idx + 1}`,
+      policyKey: 'jit',
+      policyParams: { bufferDays },
+    });
+  });
+
+  // Periodic variants (9)
+  [
+    { reviewPeriod: 3, targetLevel: 220 },
+    { reviewPeriod: 4, targetLevel: 250 },
+    { reviewPeriod: 5, targetLevel: 280 },
+    { reviewPeriod: 6, targetLevel: 320 },
+    { reviewPeriod: 7, targetLevel: 340 },
+    { reviewPeriod: 8, targetLevel: 360 },
+    { reviewPeriod: 10, targetLevel: 400 },
+    { reviewPeriod: 12, targetLevel: 450 },
+    { reviewPeriod: 14, targetLevel: 500 },
+  ].forEach((cfg, idx) => {
+    presets.push({
+      label: `Periodic ${idx + 1}`,
+      policyKey: 'periodic',
+      policyParams: { reviewPeriod: cfg.reviewPeriod, targetLevel: cfg.targetLevel },
+    });
+  });
+
+  return presets;
+}
+
+function seedPresetStrategies() {
+  if (extraStrategies.length > 0) return;
+  extraStrategies = buildPresetStrategies();
+}
 
 export function getExtraStrategies() { return extraStrategies; }
 
 function formatCurrency(value) {
-  return `$${value.toFixed(2)}`;
+  return `₱${value.toFixed(2)}`;
 }
 
 function setFlowStage(stageId) {
@@ -144,10 +217,27 @@ function setPODeliveryStatus(text) {
 function setStrategyComparisonLocked(locked) {
   const addBtn = document.getElementById('btn-add-strategy');
   const note = document.getElementById('strategy-dependency-note');
-  const form = document.getElementById('strategy-form');
-  if (addBtn) addBtn.disabled = locked;
+  if (addBtn) addBtn.disabled = false;
   if (note) note.classList.toggle('hidden', !locked);
-  if (form && locked) form.classList.add('hidden');
+  if (locked) closeStrategyForm();
+}
+
+function openStrategyModal() {
+  const modal = document.getElementById('strategy-form-modal');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+  document.body.classList.add('modal-open');
+}
+
+function closeStrategyForm() {
+  const modal = document.getElementById('strategy-form-modal');
+  if (modal) modal.classList.add('hidden');
+  document.body.classList.remove('modal-open');
+  editingStrategyIndex = -1;
+  const title = document.getElementById('strategy-form-title');
+  if (title) title.textContent = 'Add Comparison Strategy';
+  const saveBtn = document.getElementById('btn-save-strategy');
+  if (saveBtn) saveBtn.textContent = 'Save';
 }
 
 function animatePOTruck(placedOrderQty, receivedQty) {
@@ -180,7 +270,7 @@ function renderPlaybackStats(snapshot = null) {
       <div class="playback-pill">Demand: <strong>0</strong></div>
       <div class="playback-pill">Pending Orders: <strong>0</strong></div>
       <div class="playback-pill">Fill Rate: <strong>0.00%</strong></div>
-      <div class="playback-pill">Total Cost: <strong>$0.00</strong></div>
+      <div class="playback-pill">Total Cost: <strong>₱0.00</strong></div>
     `;
     return;
   }
@@ -193,6 +283,153 @@ function renderPlaybackStats(snapshot = null) {
     <div class="playback-pill">Fill Rate: <strong>${(snapshot.fillRate * 100).toFixed(2)}%</strong></div>
     <div class="playback-pill">Total Cost: <strong>${formatCurrency(snapshot.totalCost)}</strong></div>
   `;
+}
+
+function computeLiveMetricsFromState(state) {
+  const totalCost = state.totalHoldingCost + state.totalOrderingCost + state.totalStockoutCost;
+  const fillRate = state.totalDemand > 0 ? state.totalFulfilled / state.totalDemand : 1;
+  const avgInventory = state.stockSeries.length > 0
+    ? state.stockSeries.reduce((sum, v) => sum + v, 0) / state.stockSeries.length
+    : state.stock;
+
+  return {
+    day: state.day,
+    days: state.days,
+    totalCost,
+    fillRate,
+    avgInventory,
+    stockoutDays: state.stockoutDays,
+    ordersPlaced: state.ordersPlaced,
+  };
+}
+
+function renderLiveResultsKpis() {
+  const wrap = document.getElementById('live-results-kpis');
+  const caption = document.getElementById('live-results-caption');
+  if (!wrap) return;
+
+  if (!playbackState) {
+    if (caption) caption.textContent = 'Initialize playback to start real-time KPI and strategy comparison updates.';
+    wrap.innerHTML = `
+      <div class="playback-pill">Day: <strong>0 / 0</strong></div>
+      <div class="playback-pill">Total Cost: <strong>₱0.00</strong></div>
+      <div class="playback-pill">Fill Rate: <strong>0.00%</strong></div>
+      <div class="playback-pill">Avg Inventory: <strong>0</strong></div>
+      <div class="playback-pill">Stockout Days: <strong>0</strong></div>
+      <div class="playback-pill">Orders Placed: <strong>0</strong></div>
+    `;
+    return;
+  }
+
+  const m = computeLiveMetricsFromState(playbackState);
+  if (caption) {
+    caption.textContent = `Live through day ${m.day} of ${m.days}. Comparison uses the same demand sequence for all strategies up to the current day.`;
+  }
+
+  wrap.innerHTML = `
+    <div class="playback-pill">Day: <strong>${m.day} / ${m.days}</strong></div>
+    <div class="playback-pill">Total Cost: <strong>${formatCurrency(m.totalCost)}</strong></div>
+    <div class="playback-pill">Fill Rate: <strong>${(m.fillRate * 100).toFixed(2)}%</strong></div>
+    <div class="playback-pill">Avg Inventory: <strong>${Math.round(m.avgInventory)}</strong></div>
+    <div class="playback-pill">Stockout Days: <strong>${m.stockoutDays}</strong></div>
+    <div class="playback-pill">Orders Placed: <strong>${m.ordersPlaced}</strong></div>
+  `;
+}
+
+function simulateStrategyForElapsedDays({ label, policyKey, policyParams, elapsedDays }) {
+  const wh = getWarehouseConfig();
+  const demand = getDemandConfig();
+  const product = playbackState?.product;
+  if (!product) return null;
+
+  const simDays = Math.max(1, elapsedDays);
+  const sim = createPlaybackSimulation({
+    product,
+    warehouse: new Warehouse(wh),
+    demandType: demand.type,
+    demandBase: demand.base,
+    demandVariance: demand.variance,
+    demandExtra: demand.extra,
+    policyKey,
+    policyParams,
+    days: simDays,
+  });
+
+  // Keep strategy comparison fair by replaying with the same realized demand curve.
+  if (playbackState?.demand?.length) {
+    sim.demand = playbackState.demand.slice(0, simDays);
+  }
+
+  while (!sim.done && sim.day < elapsedDays) {
+    stepPlaybackDay(sim);
+  }
+
+  const m = computeLiveMetricsFromState(sim);
+  return {
+    label,
+    totalCost: m.totalCost,
+    fillRate: m.fillRate,
+    avgInventory: m.avgInventory,
+    stockoutDays: m.stockoutDays,
+  };
+}
+
+function renderLiveStrategyComparison() {
+  const tbody = document.getElementById('live-comparison-tbody');
+  if (!tbody) return;
+
+  if (!playbackState) {
+    tbody.innerHTML = '<tr><td colspan="5">Initialize playback to see live strategy comparison.</td></tr>';
+    return;
+  }
+
+  const elapsedDays = playbackState.day;
+  const primaryPolicy = getPolicyConfig();
+  const strategies = [
+    {
+      label: POLICIES[primaryPolicy.key]?.label || primaryPolicy.key,
+      policyKey: primaryPolicy.key,
+      policyParams: primaryPolicy.params,
+    },
+    ...extraStrategies,
+  ];
+
+  const rows = strategies
+    .map((s) => simulateStrategyForElapsedDays({ ...s, elapsedDays }))
+    .filter(Boolean);
+
+  if (rows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5">No strategies available yet.</td></tr>';
+    return;
+  }
+
+  let bestIdx = 0;
+  let bestCost = Infinity;
+  rows.forEach((row, idx) => {
+    if (row.totalCost < bestCost) {
+      bestCost = row.totalCost;
+      bestIdx = idx;
+    }
+  });
+
+  tbody.innerHTML = '';
+  rows.forEach((row, idx) => {
+    const tr = document.createElement('tr');
+    if (idx === bestIdx) tr.className = 'best-row';
+    tr.innerHTML = `
+      <td>${row.label}${idx === bestIdx ? ' 🏆' : ''}</td>
+      <td>${formatCurrency(row.totalCost)}</td>
+      <td>${(row.fillRate * 100).toFixed(2)}%</td>
+      <td>${Math.round(row.avgInventory)}</td>
+      <td>${row.stockoutDays}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function refreshLiveResults() {
+  renderLiveResultsKpis();
+  renderLiveStrategyComparison();
 }
 
 function getPlaybackSpeedMs() {
@@ -220,8 +457,22 @@ function stopAutoPlayback() {
 function setPlaybackButtonsEnabled(enabled) {
   const nextBtn = document.getElementById('btn-next-day');
   const autoBtn = document.getElementById('btn-auto-day');
+  const skipBtn = document.getElementById('btn-skip-period');
+  const skipSelect = document.getElementById('playback-skip-interval');
   if (nextBtn) nextBtn.disabled = !enabled;
   if (autoBtn) autoBtn.disabled = !enabled;
+  if (skipBtn) skipBtn.disabled = !enabled;
+  if (skipSelect) skipSelect.disabled = !enabled;
+}
+
+function setActivePlaybackAction(activeButtonId) {
+  for (const buttonId of PLAYBACK_ACTION_BUTTON_IDS) {
+    const btn = document.getElementById(buttonId);
+    if (!btn) continue;
+    const isActive = buttonId === activeButtonId;
+    btn.classList.toggle('btn-primary', isActive);
+    btn.classList.toggle('btn-outline', !isActive);
+  }
 }
 
 function getSelectedPlaybackProduct() {
@@ -233,6 +484,7 @@ function getSelectedPlaybackProduct() {
 
 async function runNextPlaybackDay() {
   if (!playbackState || playbackStepping) return;
+  setActivePlaybackAction('btn-next-day');
 
   playbackStepping = true;
 
@@ -244,6 +496,7 @@ async function runNextPlaybackDay() {
   renderDemandAndServed(snapshot.demand, snapshot.fulfilled, snapshot.unmet);
   renderInventoryRack(snapshot.stock);
   animatePOTruck(snapshot.placedOrderQty, snapshot.receivedQty);
+  refreshLiveResults();
 
   const flowPath = [
     'start-day',
@@ -278,6 +531,7 @@ async function runNextPlaybackDay() {
     stopAutoPlayback();
     setPlaybackButtonsEnabled(false);
     appendPlaybackLog('Simulation completed.');
+    window.dispatchEvent(new CustomEvent('process-flow-complete'));
   } else if (!autoPlaybackEnabled && nextBtn) {
     nextBtn.disabled = false;
   }
@@ -298,6 +552,7 @@ function initPlaybackSimulation() {
   const settings = getSimSettings();
 
   stopAutoPlayback();
+  setActivePlaybackAction('btn-init-playback');
   playbackState = createPlaybackSimulation({
     product,
     warehouse: new Warehouse(wh),
@@ -333,21 +588,103 @@ function initPlaybackSimulation() {
     fillRate: 1,
     totalCost: 0,
   });
+  refreshLiveResults();
   setStrategyComparisonLocked(false);
+  window.dispatchEvent(new CustomEvent('process-flow-initialized'));
+}
+
+function getPlaybackSkipDays() {
+  const raw = +(document.getElementById('playback-skip-interval')?.value || 30);
+  if (!Number.isFinite(raw) || raw <= 0) return 30;
+  return Math.round(raw);
+}
+
+function getPlaybackSkipLabel() {
+  const select = document.getElementById('playback-skip-interval');
+  const selected = select?.options?.[select.selectedIndex];
+  return selected?.textContent || 'selected period';
+}
+
+async function skipPlaybackPeriod() {
+  if (!playbackState || playbackState.done || playbackStepping) return;
+
+  stopAutoPlayback();
+  setActivePlaybackAction('btn-skip-period');
+  playbackStepping = true;
+  setPlaybackButtonsEnabled(false);
+
+  const daysToSkip = getPlaybackSkipDays();
+  let skippedDays = 0;
+  let snapshot = null;
+
+  while (skippedDays < daysToSkip && playbackState && !playbackState.done) {
+    snapshot = stepPlaybackDay(playbackState);
+    skippedDays++;
+  }
+
+  if (!snapshot) {
+    playbackStepping = false;
+    setPlaybackButtonsEnabled(true);
+    return;
+  }
+
+  renderPlaybackStats(snapshot);
+  renderDemandAndServed(snapshot.demand, snapshot.fulfilled, snapshot.unmet);
+  renderInventoryRack(snapshot.stock);
+  animatePOTruck(snapshot.placedOrderQty, snapshot.receivedQty);
+  refreshLiveResults();
+
+  const flowPath = [
+    'start-day',
+    'daily-sales',
+    'check-inventory',
+    'reduce-inventory',
+    'reorder-check',
+  ];
+
+  if (snapshot.placedOrderQty > 0) {
+    flowPath.push('create-po', 'place-order', 'supplier-lead', 'trigger-reorder');
+  }
+
+  if (snapshot.receivedQty > 0) {
+    flowPath.push('stock-received');
+  }
+
+  flowPath.push('total', 'end-day');
+  await animateFlowPath(flowPath);
+
+  appendPlaybackLog(
+    `Skipped ${skippedDays} day(s) (${getPlaybackSkipLabel()}) to day ${snapshot.day}: stock ${snapshot.stock}, demand ${snapshot.demand}, fulfilled ${snapshot.fulfilled}, unmet ${snapshot.unmet}.`,
+  );
+
+  if (snapshot.done) {
+    setFlowStage('end-day');
+    setPlaybackButtonsEnabled(false);
+    appendPlaybackLog('Simulation completed.');
+    window.dispatchEvent(new CustomEvent('process-flow-complete'));
+  } else {
+    setPlaybackButtonsEnabled(true);
+  }
+
+  playbackStepping = false;
 }
 
 function toggleAutoPlayback() {
-  if (!playbackState || playbackState.done || playbackStepping) return;
+  if (!playbackState || playbackState.done) return;
 
   const autoBtn = document.getElementById('btn-auto-day');
   if (autoPlaybackEnabled) {
     stopAutoPlayback();
+    setActivePlaybackAction('btn-next-day');
     const nextBtn = document.getElementById('btn-next-day');
     if (nextBtn) nextBtn.disabled = false;
     return;
   }
 
+  if (playbackStepping) return;
+
   autoPlaybackEnabled = true;
+  setActivePlaybackAction('btn-auto-day');
   const nextBtn = document.getElementById('btn-next-day');
   if (nextBtn) nextBtn.disabled = true;
   autoBtn.textContent = 'Pause Auto Day';
@@ -424,31 +761,89 @@ export function refreshSimSummary() {
 function renderStrategyList() {
   const list = document.getElementById('strategy-list');
   list.innerHTML = '';
+
+  if (extraStrategies.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'item-row';
+    empty.innerHTML = '<div><span class="item-meta">No extra strategies yet. Click + Add Strategy to create one.</span></div>';
+    list.appendChild(empty);
+    return;
+  }
+
   extraStrategies.forEach((s, i) => {
     const row = document.createElement('div');
-    row.className = 'item-row';
+    row.className = 'item-row strategy-row';
     row.innerHTML = `
       <div>
         <span class="item-name">${s.label}</span>
         <span class="item-meta"> — ${POLICIES[s.policyKey]?.label || s.policyKey}</span>
       </div>
       <div class="item-actions">
-        <button class="btn-delete" data-idx="${i}" title="Remove">🗑️</button>
+        <button type="button" class="btn-edit" data-idx="${i}" title="Edit">✏️</button>
+        <button type="button" class="btn-delete" data-idx="${i}" title="Remove">🗑️</button>
       </div>`;
+    row.addEventListener('click', () => openStrategyForm(i));
     list.appendChild(row);
   });
+
+  list.querySelectorAll('.btn-edit').forEach(b =>
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openStrategyForm(+b.dataset.idx);
+    }));
+
   list.querySelectorAll('.btn-delete').forEach(b =>
-    b.addEventListener('click', () => { extraStrategies.splice(+b.dataset.idx, 1); renderStrategyList(); refreshSimSummary(); }));
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      extraStrategies.splice(+b.dataset.idx, 1);
+      renderStrategyList();
+      refreshSimSummary();
+      if (playbackState) refreshLiveResults();
+    }));
 }
 
-function openStrategyForm() {
+function openStrategyForm(idx = -1) {
   if (!playbackState) {
     alert('Initialize Process Flow first to unlock strategy comparison.');
     return;
   }
-  document.getElementById('strategy-form').classList.remove('hidden');
-  document.getElementById('sf-label').value = '';
-  renderStrategyPolicyParams();
+
+  editingStrategyIndex = idx;
+  openStrategyModal();
+
+  const title = document.getElementById('strategy-form-title');
+  const saveBtn = document.getElementById('btn-save-strategy');
+  const labelInput = document.getElementById('sf-label');
+
+  if (idx >= 0) {
+    const s = extraStrategies[idx];
+    if (title) title.textContent = 'Edit Comparison Strategy';
+    if (saveBtn) saveBtn.textContent = 'Update';
+    if (labelInput) labelInput.value = s.label || '';
+    const policySelect = document.getElementById('sf-policy');
+    if (policySelect) policySelect.value = s.policyKey;
+    renderStrategyPolicyParams();
+    const policyFn = POLICIES[s.policyKey];
+    if (policyFn && policyFn.defaultParams) {
+      for (const [pk, defaultVal] of Object.entries(policyFn.defaultParams)) {
+        const el = document.getElementById(`sf-${pk}`);
+        if (el) el.value = s.policyParams?.[pk] ?? defaultVal;
+      }
+    }
+  } else {
+    if (title) title.textContent = 'Add Comparison Strategy';
+    if (saveBtn) saveBtn.textContent = 'Save';
+    if (labelInput) labelInput.value = '';
+    renderStrategyPolicyParams();
+  }
+
+  document.getElementById('sf-label')?.focus();
+}
+
+function handleStrategyModalEscape(e) {
+  if (e.key !== 'Escape') return;
+  const modal = document.getElementById('strategy-form-modal');
+  if (modal && !modal.classList.contains('hidden')) closeStrategyForm();
 }
 
 function renderStrategyPolicyParams() {
@@ -479,35 +874,53 @@ function saveStrategy() {
       else params[pk] = policyFn.defaultParams[pk];
     }
   }
-  extraStrategies.push({
+  const payload = {
     label: document.getElementById('sf-label').value || `Strategy ${extraStrategies.length + 2}`,
     policyKey: key,
     policyParams: params,
-  });
-  document.getElementById('strategy-form').classList.add('hidden');
+  };
+
+  if (editingStrategyIndex >= 0) {
+    extraStrategies[editingStrategyIndex] = payload;
+  } else {
+    extraStrategies.push(payload);
+  }
+
+  closeStrategyForm();
   renderStrategyList();
   refreshSimSummary();
+  if (playbackState) refreshLiveResults();
+}
+
+function bindStrategyModalEvents() {
+  document.getElementById('btn-add-strategy').addEventListener('click', () => openStrategyForm(-1));
+  document.getElementById('btn-save-strategy').addEventListener('click', saveStrategy);
+  document.getElementById('btn-cancel-strategy').addEventListener('click', closeStrategyForm);
+  document.getElementById('strategy-form-backdrop').addEventListener('click', closeStrategyForm);
+  document.addEventListener('keydown', handleStrategyModalEscape);
+  document.getElementById('sf-policy').addEventListener('change', renderStrategyPolicyParams);
 }
 
 export function initDashboard() {
   // Strategy builder
-  document.getElementById('btn-add-strategy').addEventListener('click', openStrategyForm);
-  document.getElementById('btn-save-strategy').addEventListener('click', saveStrategy);
-  document.getElementById('btn-cancel-strategy').addEventListener('click', () =>
-    document.getElementById('strategy-form').classList.add('hidden'));
-  document.getElementById('sf-policy').addEventListener('change', renderStrategyPolicyParams);
+  seedPresetStrategies();
+  bindStrategyModalEvents();
 
   // Day-by-day playback
   document.getElementById('btn-init-playback').addEventListener('click', initPlaybackSimulation);
   document.getElementById('btn-next-day').addEventListener('click', runNextPlaybackDay);
   document.getElementById('btn-auto-day').addEventListener('click', toggleAutoPlayback);
+  document.getElementById('btn-skip-period').addEventListener('click', skipPlaybackPeriod);
   document.getElementById('playback-speed').addEventListener('change', handlePlaybackSpeedChange);
 
   setPlaybackButtonsEnabled(false);
-  setStrategyComparisonLocked(true);
+  setStrategyComparisonLocked(false);
   ensureInventoryRack();
   renderInventoryRack(0);
   renderDemandAndServed(0, 0, 0);
   renderPlaybackStats();
+  refreshLiveResults();
+  renderStrategyList();
   refreshPlaybackProductOptions();
+  setActivePlaybackAction('btn-next-day');
 }

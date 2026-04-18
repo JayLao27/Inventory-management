@@ -20,12 +20,12 @@ export function renderResults(strategyResults) {
   const kpiRow = document.getElementById('kpi-row');
   kpiRow.innerHTML = '';
   const kpis = [
-    { label: 'Total Cost',     value: metrics.totalCost.mean, prefix: '$', decimals: 0, sub: `Range: $${fmtK(metrics.totalCost.min)} – $${fmtK(metrics.totalCost.max)}` },
+    { label: 'Total Cost',     value: metrics.totalCost.mean, prefix: '₱', decimals: 0, sub: `Range: ₱${fmtK(metrics.totalCost.min)} – ₱${fmtK(metrics.totalCost.max)}` },
     { label: 'Fill Rate',      value: metrics.fillRate.mean * 100, suffix: '%', decimals: 1, sub: `Min: ${(metrics.fillRate.min * 100).toFixed(1)}%` },
     { label: 'Avg Inventory',  value: metrics.avgInventory.mean, decimals: 0, suffix: ' units', sub: `Range: ${Math.round(metrics.avgInventory.min)} – ${Math.round(metrics.avgInventory.max)}` },
     { label: 'Stockout Days',  value: metrics.stockoutDays.mean, decimals: 1, suffix: ' days', sub: `of ${days} simulated days` },
-    { label: 'Holding Cost',   value: metrics.holdingCost.mean, prefix: '$', decimals: 0, sub: '' },
-    { label: 'Ordering Cost',  value: metrics.orderingCost.mean, prefix: '$', decimals: 0, sub: '' },
+    { label: 'Holding Cost',   value: metrics.holdingCost.mean, prefix: '₱', decimals: 0, sub: '' },
+    { label: 'Ordering Cost',  value: metrics.orderingCost.mean, prefix: '₱', decimals: 0, sub: '' },
   ];
 
   kpis.forEach(k => {
@@ -68,7 +68,7 @@ export function renderResults(strategyResults) {
     label: s.label,
     values: [s.result.metrics.holdingCost.mean, s.result.metrics.orderingCost.mean, s.result.metrics.stockoutCost.mean],
   }));
-  drawBarChart(document.getElementById('chart-costs'), { categories, groups, yLabel: '$' });
+  drawBarChart(document.getElementById('chart-costs'), { categories, groups, yLabel: '₱' });
 
   // Fill rate
   const seriesFR = strategyResults.map(s => ({ label: s.label, data: s.result.timeSeries.fillRate }));
@@ -101,10 +101,10 @@ export function renderResults(strategyResults) {
     if (i === bestIdx) tr.className = 'best-row';
     tr.innerHTML = `
       <td>${s.label}${i === bestIdx ? ' 🏆' : ''}</td>
-      <td>$${fmtK(m.totalCost.mean)}</td>
-      <td>$${fmtK(m.holdingCost.mean)}</td>
-      <td>$${fmtK(m.orderingCost.mean)}</td>
-      <td>$${fmtK(m.stockoutCost.mean)}</td>
+      <td>₱${fmtK(m.totalCost.mean)}</td>
+      <td>₱${fmtK(m.holdingCost.mean)}</td>
+      <td>₱${fmtK(m.orderingCost.mean)}</td>
+      <td>₱${fmtK(m.stockoutCost.mean)}</td>
       <td>${(m.fillRate.mean * 100).toFixed(1)}%</td>
       <td>${Math.round(m.avgInventory.mean)}</td>
       <td>${m.stockoutDays.mean.toFixed(1)}</td>`;
