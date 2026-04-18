@@ -403,7 +403,7 @@ def main():
             (f"Last demand: {last_demand:.1f} units", BLACK),
             (f"Pending orders: {pending_txt}", BLACK),
             (f"Manual order queued: {manual_order_qty} units", BLUE),
-            (f"Holding cost: ${engine.cumulative_holding:.2f} | Ordering cost: ${engine.cumulative_ordering:.2f}", BLACK),
+            (f"Holding cost: ₱{engine.cumulative_holding:.2f} | Ordering cost: ₱{engine.cumulative_ordering:.2f}", BLACK),
         ]
         if engine.current_day >= engine.days:
             state_lines.append(("Simulation complete (press Q to exit)", GREEN))
