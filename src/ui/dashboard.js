@@ -6,6 +6,7 @@ import { getProducts, getWarehouseConfig, getDemandConfig, getPolicyConfig, getS
 import { POLICIES } from '../engine/policies.js';
 import { createPlaybackSimulation, stepPlaybackDay } from '../engine/simulator.js';
 import { Warehouse } from '../engine/warehouse.js';
+import { initProcess3DScene, setProcess3DStage, updateProcess3DScene } from './process3d.js';
 
 /** @type {Array<{label:string, policyKey:string, policyParams:object}>} */
 let extraStrategies = [];
@@ -126,6 +127,7 @@ function getStepDelayMs() {
 async function animateFlowPath(path) {
   const delay = getStepDelayMs();
   for (const stage of path) {
+    setProcess3DStage(stage);
     setFlowStage(stage);
     moveTruckToStage(stage);
     await wait(delay);
@@ -495,6 +497,13 @@ async function runNextPlaybackDay() {
   renderPlaybackStats(snapshot);
   renderDemandAndServed(snapshot.demand, snapshot.fulfilled, snapshot.unmet);
   renderInventoryRack(snapshot.stock);
+  updateProcess3DScene({
+    stock: snapshot.stock,
+    baseStock: playbackBaseStock,
+    demand: snapshot.demand,
+    placedOrderQty: snapshot.placedOrderQty,
+    receivedQty: snapshot.receivedQty,
+  });
   animatePOTruck(snapshot.placedOrderQty, snapshot.receivedQty);
   refreshLiveResults();
 
@@ -527,6 +536,7 @@ async function runNextPlaybackDay() {
   );
 
   if (snapshot.done) {
+    setProcess3DStage('end-day');
     setFlowStage('end-day');
     stopAutoPlayback();
     setPlaybackButtonsEnabled(false);
@@ -573,6 +583,7 @@ function initPlaybackSimulation() {
   }
 
   setPlaybackButtonsEnabled(true);
+  setProcess3DStage('start-day');
   setFlowStage('start-day');
   moveTruckToStage('start-day');
   ensureInventoryRack();
@@ -587,6 +598,13 @@ function initPlaybackSimulation() {
     pendingOrders: 0,
     fillRate: 1,
     totalCost: 0,
+  });
+  updateProcess3DScene({
+    stock: playbackState.stock,
+    baseStock: playbackBaseStock,
+    demand: 0,
+    placedOrderQty: 0,
+    receivedQty: 0,
   });
   refreshLiveResults();
   setStrategyComparisonLocked(false);
@@ -631,6 +649,13 @@ async function skipPlaybackPeriod() {
   renderPlaybackStats(snapshot);
   renderDemandAndServed(snapshot.demand, snapshot.fulfilled, snapshot.unmet);
   renderInventoryRack(snapshot.stock);
+  updateProcess3DScene({
+    stock: snapshot.stock,
+    baseStock: playbackBaseStock,
+    demand: snapshot.demand,
+    placedOrderQty: snapshot.placedOrderQty,
+    receivedQty: snapshot.receivedQty,
+  });
   animatePOTruck(snapshot.placedOrderQty, snapshot.receivedQty);
   refreshLiveResults();
 
@@ -658,6 +683,7 @@ async function skipPlaybackPeriod() {
   );
 
   if (snapshot.done) {
+    setProcess3DStage('end-day');
     setFlowStage('end-day');
     setPlaybackButtonsEnabled(false);
     appendPlaybackLog('Simulation completed.');
@@ -905,6 +931,7 @@ export function initDashboard() {
   // Strategy builder
   seedPresetStrategies();
   bindStrategyModalEvents();
+  initProcess3DScene();
 
   // Day-by-day playback
   document.getElementById('btn-init-playback').addEventListener('click', initPlaybackSimulation);

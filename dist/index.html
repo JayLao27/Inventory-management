@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
-  <script type="module" crossorigin src="/assets/index-BeMvhuC4.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-o96d8VuA.css">
+  <script type="module" crossorigin src="/assets/index-BNpeMhob.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-eb1rldyT.css">
 </head>
 <body>
   <!-- ============ Top Navigation ============ -->
@@ -49,17 +49,42 @@
           <label>SKU <input id="pf-sku" type="text" placeholder="e.g. FOOD-RICE-001" /></label>
           <label>Category <input id="pf-category" type="text" placeholder="e.g. Staple Foods" /></label>
           <div class="form-row">
-            <label>Unit Cost ($) <input id="pf-unit-cost" type="number" min="0" step="0.01" value="10" /></label>
-            <label>Holding Cost / unit / day ($) <input id="pf-holding-cost" type="number" min="0" step="0.01" value="0.05" /></label>
+            <label>Unit Cost (Peso) <input id="pf-unit-cost" type="number" min="0" step="0.01" value="10" /></label>
+            <label>Holding Cost / unit / day (Peso) <input id="pf-holding-cost" type="number" min="0" step="0.01" value="0.05" /></label>
           </div>
           <div class="form-row">
-            <label>Ordering Cost ($) <input id="pf-ordering-cost" type="number" min="0" step="0.01" value="50" /></label>
+            <label>Ordering Cost (Peso) <input id="pf-ordering-cost" type="number" min="0" step="0.01" value="50" /></label>
             <label>Lead Time (days) <input id="pf-lead-time" type="number" min="1" value="5" /></label>
           </div>
           <label>Initial Stock <input id="pf-initial-stock" type="number" min="0" value="200" /></label>
           <div class="form-actions">
             <button type="button" id="btn-save-product" class="btn btn-primary">Save</button>
             <button type="button" id="btn-cancel-product" class="btn btn-ghost">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Strategy Form Modal -->
+    <div id="strategy-form-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="strategy-form-title">
+      <div class="modal-backdrop" id="strategy-form-backdrop"></div>
+      <div class="modal-panel">
+        <div id="strategy-form" class="sub-form modal-form">
+          <h3 id="strategy-form-title">Add Comparison Strategy</h3>
+          <label>Label <input id="sf-label" type="text" /></label>
+          <label>
+            Policy
+            <select id="sf-policy">
+              <option value="rop">Fixed Reorder Point (ROP)</option>
+              <option value="eoq">Economic Order Quantity (EOQ)</option>
+              <option value="jit">Just-In-Time (JIT)</option>
+              <option value="periodic">Periodic Review</option>
+            </select>
+          </label>
+          <div id="sf-params"></div>
+          <div class="form-actions">
+            <button id="btn-save-strategy" class="btn btn-primary">Save</button>
+            <button id="btn-cancel-strategy" class="btn btn-ghost">Cancel</button>
           </div>
         </div>
       </div>
@@ -185,6 +210,12 @@
         </div>
 
         <div class="flow-visuals">
+          <div class="flow-visual-card process-3d-card">
+            <div class="flow-visual-title">3D Process Loop</div>
+            <div id="process-3d-scene" class="process-3d-scene" aria-hidden="true"></div>
+            <p class="process-3d-caption">Inventory moves from receiving to storage, then out through the dispatch loop.</p>
+          </div>
+
           <div class="flow-visual-card">
             <div class="flow-visual-title">Start Of Day Demand (Customers)</div>
             <div id="customer-stream" class="customer-stream" aria-live="polite"></div>
@@ -223,15 +254,45 @@
               <option value="8x">8x</option>
             </select>
           </label>
+          <label>
+            Skip Interval
+            <select id="playback-skip-interval">
+              <option value="30" selected>1 Month (30 days)</option>
+              <option value="180">6 Months (180 days)</option>
+              <option value="365">1 Year (365 days)</option>
+            </select>
+          </label>
         </div>
 
         <div class="playback-button-row">
           <button id="btn-init-playback" class="btn btn-outline">Initialize Playback</button>
           <button id="btn-next-day" class="btn btn-primary">Next Day (Manual)</button>
           <button id="btn-auto-day" class="btn btn-outline">Start Auto Day</button>
+          <button id="btn-skip-period" class="btn btn-outline">Skip Selected Period</button>
         </div>
 
         <div id="playback-status" class="playback-status"></div>
+
+        <div class="live-results-block" id="live-results-block">
+          <div class="card-title"><span class="card-icon">⚡</span> Real-time Results & Strategy Comparison</div>
+          <p id="live-results-caption" class="hint">Updates while playback runs. Comparison uses the same demand sequence for all strategies up to the current day.</p>
+          <div id="live-results-kpis" class="playback-status"></div>
+          <div class="table-wrap">
+            <table id="live-comparison-table">
+              <thead>
+                <tr>
+                  <th>Strategy</th>
+                  <th>Total Cost</th>
+                  <th>Fill Rate</th>
+                  <th>Avg Inventory</th>
+                  <th>Stockout Days</th>
+                </tr>
+              </thead>
+              <tbody id="live-comparison-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
         <div id="playback-log" class="playback-log" aria-live="polite"></div>
       </div>
 
@@ -242,25 +303,6 @@
         <p class="hint" id="strategy-dependency-note">Initialize Process Flow first to unlock strategy comparison.</p>
         <div id="strategy-list" class="item-list"></div>
         <button id="btn-add-strategy" class="btn btn-outline">+ Add Strategy</button>
-
-        <div id="strategy-form" class="sub-form hidden">
-          <h3>Add Comparison Strategy</h3>
-          <label>Label <input id="sf-label" type="text" placeholder="e.g. Aggressive EOQ" /></label>
-          <label>
-            Policy
-            <select id="sf-policy">
-              <option value="rop">Fixed Reorder Point (ROP)</option>
-              <option value="eoq">Economic Order Quantity (EOQ)</option>
-              <option value="jit">Just-In-Time (JIT)</option>
-              <option value="periodic">Periodic Review</option>
-            </select>
-          </label>
-          <div id="sf-params"></div>
-          <div class="form-actions">
-            <button id="btn-save-strategy" class="btn btn-primary">Save</button>
-            <button id="btn-cancel-strategy" class="btn btn-ghost">Cancel</button>
-          </div>
-        </div>
       </div>
     </section>
 
