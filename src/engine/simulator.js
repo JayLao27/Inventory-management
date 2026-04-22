@@ -71,6 +71,12 @@ export function createPlaybackSimulation({
  * @param {ReturnType<typeof createPlaybackSimulation>} state
  */
 export function stepPlaybackDay(state) {
+  const getNextReceiptDays = () => {
+    if (!state.pendingQueue.length) return null;
+    const nearestArrival = Math.min(...state.pendingQueue.map((order) => order.arriveDay));
+    return Math.max(0, nearestArrival - state.day);
+  };
+
   if (state.done || state.day >= state.days) {
     state.done = true;
     return {
@@ -79,6 +85,7 @@ export function stepPlaybackDay(state) {
       days: state.days,
       stock: state.stock,
       pendingOrders: state.pendingQueue.reduce((sum, o) => sum + o.qty, 0),
+      nextReceiptDays: getNextReceiptDays(),
       receivedQty: 0,
       demand: 0,
       fulfilled: 0,
@@ -160,6 +167,7 @@ export function stepPlaybackDay(state) {
     days: state.days,
     stock: state.stock,
     pendingOrders: state.pendingQueue.reduce((sum, o) => sum + o.qty, 0),
+    nextReceiptDays: getNextReceiptDays(),
     receivedQty,
     demand: dayDemand,
     fulfilled,
