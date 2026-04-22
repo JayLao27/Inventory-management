@@ -242,7 +242,7 @@ function closeStrategyForm() {
   if (saveBtn) saveBtn.textContent = 'Save';
 }
 
-function animatePOTruck(placedOrderQty, receivedQty) {
+function animatePOTruck(placedOrderQty, receivedQty, nextReceiptDays = null) {
   const truck = document.getElementById('po-truck');
   if (!truck) return;
 
@@ -250,7 +250,10 @@ function animatePOTruck(placedOrderQty, receivedQty) {
   if (placedOrderQty > 0) {
     void truck.offsetWidth;
     truck.classList.add('delivering');
-    setPODeliveryStatus(`Purchase order placed: ${placedOrderQty} units. Truck is delivering.`);
+    const etaText = Number.isFinite(nextReceiptDays)
+      ? ` ETA to warehouse: ${nextReceiptDays} day${nextReceiptDays === 1 ? '' : 's'}.`
+      : '';
+    setPODeliveryStatus(`Purchase order placed: ${placedOrderQty} units. Truck is delivering to warehouse.${etaText}`);
     return;
   }
 
@@ -501,10 +504,12 @@ async function runNextPlaybackDay() {
     stock: snapshot.stock,
     baseStock: playbackBaseStock,
     demand: snapshot.demand,
+    pendingOrders: snapshot.pendingOrders,
+    nextReceiptDays: snapshot.nextReceiptDays,
     placedOrderQty: snapshot.placedOrderQty,
     receivedQty: snapshot.receivedQty,
   });
-  animatePOTruck(snapshot.placedOrderQty, snapshot.receivedQty);
+  animatePOTruck(snapshot.placedOrderQty, snapshot.receivedQty, snapshot.nextReceiptDays);
   refreshLiveResults();
 
   const flowPath = [
@@ -603,6 +608,8 @@ function initPlaybackSimulation() {
     stock: playbackState.stock,
     baseStock: playbackBaseStock,
     demand: 0,
+    pendingOrders: 0,
+    nextReceiptDays: null,
     placedOrderQty: 0,
     receivedQty: 0,
   });
@@ -653,10 +660,12 @@ async function skipPlaybackPeriod() {
     stock: snapshot.stock,
     baseStock: playbackBaseStock,
     demand: snapshot.demand,
+    pendingOrders: snapshot.pendingOrders,
+    nextReceiptDays: snapshot.nextReceiptDays,
     placedOrderQty: snapshot.placedOrderQty,
     receivedQty: snapshot.receivedQty,
   });
-  animatePOTruck(snapshot.placedOrderQty, snapshot.receivedQty);
+  animatePOTruck(snapshot.placedOrderQty, snapshot.receivedQty, snapshot.nextReceiptDays);
   refreshLiveResults();
 
   const flowPath = [
