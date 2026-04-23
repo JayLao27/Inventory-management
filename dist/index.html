@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
-  <script type="module" crossorigin src="/assets/index-BjOBsvqg.js"></script>
+  <script type="module" crossorigin src="/assets/index-DWrO7gLE.js"></script>
   <link rel="stylesheet" crossorigin href="/assets/index-eb1rldyT.css">
 </head>
 <body>
@@ -157,143 +157,146 @@
         <div class="card-title"><span class="card-icon">🧭</span> Process Flow + Day Playback</div>
         <p class="hint">Use this to walk through the simulation one day at a time, or run days automatically with speed control.</p>
 
-        <div class="flow-chart structured" id="process-flow-chart" aria-label="Inventory process flow">
-          <div id="flow-truck" aria-hidden="true">🚚</div>
+        <div class="playback-split-container">
+          <div class="playback-viz-section">
+            <div class="flow-chart structured" id="process-flow-chart" aria-label="Inventory process flow">
+              <div id="flow-truck" aria-hidden="true">🚚</div>
 
-          <div class="flow-lane-label top">Main Day Flow</div>
+              <div class="flow-lane-label top">Main Day Flow</div>
 
-          <div class="flow-row top-row">
-            <div class="flow-node active" data-stage="start-day">Start Of Day</div>
-            <div class="flow-link" aria-hidden="true"></div>
-            <div class="flow-node" data-stage="daily-sales">Daily Sales</div>
-            <div class="flow-link" aria-hidden="true"></div>
-            <div class="flow-node decision" data-stage="check-inventory">Check Inventory</div>
-            <div class="flow-link decision-link true-path" aria-hidden="true">
-              <span class="decision-chip"><span class="tri-up">▲</span> True</span>
+              <div class="flow-row top-row">
+                <div class="flow-node active" data-stage="start-day">Start Of Day</div>
+                <div class="flow-link" aria-hidden="true"></div>
+                <div class="flow-node" data-stage="daily-sales">Daily Sales</div>
+                <div class="flow-link" aria-hidden="true"></div>
+                <div class="flow-node decision" data-stage="check-inventory">Check Inventory</div>
+                <div class="flow-link decision-link true-path" aria-hidden="true">
+                  <span class="decision-chip"><span class="tri-up">▲</span> True</span>
+                </div>
+                <div class="flow-node" data-stage="reduce-inventory">Reduce Inventory</div>
+                <div class="flow-link" aria-hidden="true"></div>
+                <div class="flow-node decision" data-stage="reorder-check">Stock Reorder Point?</div>
+                <div class="flow-link decision-link true-path" aria-hidden="true">
+                  <span class="decision-chip"><span class="tri-up">▲</span> True</span>
+                </div>
+                <div class="flow-node accent" data-stage="create-po">Create Purchase Order</div>
+                <div class="flow-link" aria-hidden="true"></div>
+                <div class="flow-node" data-stage="place-order">Place Order</div>
+                <div class="flow-link" aria-hidden="true"></div>
+                <div class="flow-node round" data-stage="supplier-lead">Supplier Lead Time</div>
+              </div>
+
+              <div class="flow-lane-label bottom">Loss, Totals, and Reorder Continuation</div>
+
+              <div class="flow-row branch-row">
+                <div class="flow-spacer"></div>
+                <div class="flow-spacer"></div>
+                <div class="flow-node" data-stage="lost-customer">Lost Customer</div>
+                <div class="flow-link" aria-hidden="true"></div>
+                <div class="flow-node neutral" data-stage="tally-lost">Tally Amount Lost</div>
+                <div class="flow-link" aria-hidden="true"></div>
+                <div class="flow-node" data-stage="total">Total</div>
+                <div class="flow-link" aria-hidden="true"></div>
+                <div class="flow-node end-day-node" data-stage="end-day">End Of Day</div>
+                <div class="flow-gap" aria-hidden="true"></div>
+                <div class="flow-node" data-stage="stock-received">Stock Received</div>
+                <div class="flow-link" aria-hidden="true"></div>
+                <div class="flow-node" data-stage="trigger-reorder">Trigger Reorder</div>
+              </div>
+
+              <div class="flow-bridges" aria-hidden="true">
+                <span class="flow-bridge b-check-loss"><span class="bridge-label false"><span class="tri-down">▼</span> False</span></span>
+                <span class="flow-bridge b-reorder-total"><span class="bridge-label false"><span class="tri-down">▼</span> False</span></span>
+                <span class="flow-bridge b-supplier-trigger"></span>
+              </div>
             </div>
-            <div class="flow-node" data-stage="reduce-inventory">Reduce Inventory</div>
-            <div class="flow-link" aria-hidden="true"></div>
-            <div class="flow-node decision" data-stage="reorder-check">Stock Reorder Point?</div>
-            <div class="flow-link decision-link true-path" aria-hidden="true">
-              <span class="decision-chip"><span class="tri-up">▲</span> True</span>
+
+            <div class="flow-visuals">
+              <div class="flow-visual-card process-3d-card">
+                <div class="flow-visual-title">3D Process Loop</div>
+                <div id="process-3d-scene" class="process-3d-scene" aria-hidden="true"></div>
+                <p id="process-3d-caption" class="process-3d-caption">Monitoring inventory flow. Rice sack inventory: 0%</p>
+              </div>
+
+              <div class="flow-visual-card">
+                <div class="flow-visual-title">Start Of Day Demand</div>
+                <div id="customer-stream" class="customer-stream" aria-live="polite"></div>
+              </div>
+
+              <div class="flow-visual-card">
+                <div class="flow-visual-title">Reduce Inventory</div>
+                <div id="inventory-rack" class="inventory-rack" aria-live="polite"></div>
+                <div id="served-people" class="served-people"></div>
+              </div>
+
+              <div class="flow-visual-card">
+                <div class="flow-visual-title">PO Delivery</div>
+                <div class="po-lane">
+                  <div class="po-end">PO</div>
+                  <div id="po-truck" class="po-truck">🚚</div>
+                  <div class="po-line"></div>
+                  <div class="po-end">📦</div>
+                </div>
+                <p id="po-delivery-status" class="po-delivery-status">No purchase order for this day yet.</p>
+              </div>
             </div>
-            <div class="flow-node accent" data-stage="create-po">Create Purchase Order</div>
-            <div class="flow-link" aria-hidden="true"></div>
-            <div class="flow-node" data-stage="place-order">Place Order</div>
-            <div class="flow-link" aria-hidden="true"></div>
-            <div class="flow-node round" data-stage="supplier-lead">Supplier Lead Time</div>
           </div>
 
-          <div class="flow-lane-label bottom">Loss, Totals, and Reorder Continuation</div>
-
-          <div class="flow-row branch-row">
-            <div class="flow-spacer"></div>
-            <div class="flow-spacer"></div>
-            <div class="flow-node" data-stage="lost-customer">Lost Customer</div>
-            <div class="flow-link" aria-hidden="true"></div>
-            <div class="flow-node neutral" data-stage="tally-lost">Tally Amount Lost</div>
-            <div class="flow-link" aria-hidden="true"></div>
-            <div class="flow-node" data-stage="total">Total</div>
-            <div class="flow-link" aria-hidden="true"></div>
-            <div class="flow-node end-day-node" data-stage="end-day">End Of Day</div>
-            <div class="flow-gap" aria-hidden="true"></div>
-            <div class="flow-node" data-stage="stock-received">Stock Received</div>
-            <div class="flow-link" aria-hidden="true"></div>
-            <div class="flow-node" data-stage="trigger-reorder">Trigger Reorder</div>
-          </div>
-
-          <div class="flow-bridges" aria-hidden="true">
-            <span class="flow-bridge b-check-loss"><span class="bridge-label false"><span class="tri-down">▼</span> False</span></span>
-            <span class="flow-bridge b-reorder-total"><span class="bridge-label false"><span class="tri-down">▼</span> False</span></span>
-            <span class="flow-bridge b-supplier-trigger"></span>
-          </div>
-        </div>
-
-        <div class="flow-visuals">
-          <div class="flow-visual-card process-3d-card">
-            <div class="flow-visual-title">3D Process Loop</div>
-            <div id="process-3d-scene" class="process-3d-scene" aria-hidden="true"></div>
-            <p id="process-3d-caption" class="process-3d-caption">Monitoring inventory flow. Rice sack inventory: 0%</p>
-          </div>
-
-          <div class="flow-visual-card">
-            <div class="flow-visual-title">Start Of Day Demand (Customers)</div>
-            <div id="customer-stream" class="customer-stream" aria-live="polite"></div>
-          </div>
-
-          <div class="flow-visual-card">
-            <div class="flow-visual-title">Reduce Inventory (Items Picked Per Day)</div>
-            <div id="inventory-rack" class="inventory-rack" aria-live="polite"></div>
-            <div id="served-people" class="served-people"></div>
-          </div>
-
-          <div class="flow-visual-card">
-            <div class="flow-visual-title">Purchase Order Delivery</div>
-            <div class="po-lane">
-              <div class="po-end">PO</div>
-              <div id="po-truck" class="po-truck">🚚</div>
-              <div class="po-line"></div>
-              <div class="po-end">📦</div>
+          <div class="playback-sidebar">
+            <div class="playback-controls-row">
+              <label>
+                Product
+                <select id="playback-product"></select>
+              </label>
+              <label>
+                Auto Speed
+                <select id="playback-speed">
+                  <option value="0.5x">0.5x (Slow)</option>
+                  <option value="1x" selected>1x (Normal)</option>
+                  <option value="2x">2x</option>
+                  <option value="4x">4x</option>
+                  <option value="8x">8x</option>
+                </select>
+              </label>
+              <label>
+                Skip Interval
+                <select id="playback-skip-interval">
+                  <option value="30" selected>1 Month (30 days)</option>
+                  <option value="180">6 Months (180 days)</option>
+                  <option value="365">1 Year (365 days)</option>
+                </select>
+              </label>
             </div>
-            <p id="po-delivery-status" class="po-delivery-status">No purchase order for this day yet.</p>
+
+            <div class="playback-button-row">
+              <button id="btn-init-playback" class="btn btn-outline">Initialize Playback</button>
+              <button id="btn-next-day" class="btn btn-primary">Next Day</button>
+              <button id="btn-auto-day" class="btn btn-outline">Start Auto</button>
+              <button id="btn-skip-period" class="btn btn-outline">Skip</button>
+            </div>
+
+            <div id="playback-status" class="playback-status"></div>
+
+            <div class="live-results-block" id="live-results-block">
+              <div class="card-title"><span class="card-icon">⚡</span> Real-time Results</div>
+              <div id="live-results-kpis" class="playback-status"></div>
+              <div class="table-wrap">
+                <table id="live-comparison-table">
+                  <thead>
+                    <tr>
+                      <th>Strategy</th>
+                      <th>Total Cost</th>
+                      <th>Fill Rate</th>
+                    </tr>
+                  </thead>
+                  <tbody id="live-comparison-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div id="playback-log" class="playback-log" aria-live="polite"></div>
           </div>
         </div>
-
-        <div class="playback-controls-row">
-          <label>
-            Product
-            <select id="playback-product"></select>
-          </label>
-          <label>
-            Auto Speed
-            <select id="playback-speed">
-              <option value="0.5x">0.5x (Slow)</option>
-              <option value="1x" selected>1x (Normal)</option>
-              <option value="2x">2x</option>
-              <option value="4x">4x</option>
-              <option value="8x">8x</option>
-            </select>
-          </label>
-          <label>
-            Skip Interval
-            <select id="playback-skip-interval">
-              <option value="30" selected>1 Month (30 days)</option>
-              <option value="180">6 Months (180 days)</option>
-              <option value="365">1 Year (365 days)</option>
-            </select>
-          </label>
-        </div>
-
-        <div class="playback-button-row">
-          <button id="btn-init-playback" class="btn btn-outline">Initialize Playback</button>
-          <button id="btn-next-day" class="btn btn-primary">Next Day (Manual)</button>
-          <button id="btn-auto-day" class="btn btn-outline">Start Auto Day</button>
-          <button id="btn-skip-period" class="btn btn-outline">Skip Selected Period</button>
-        </div>
-
-        <div id="playback-status" class="playback-status"></div>
-
-        <div class="live-results-block" id="live-results-block">
-          <div class="card-title"><span class="card-icon">⚡</span> Real-time Results & Strategy Comparison</div>
-          <p id="live-results-caption" class="hint">Updates while playback runs. Comparison uses the same demand sequence for all strategies up to the current day.</p>
-          <div id="live-results-kpis" class="playback-status"></div>
-          <div class="table-wrap">
-            <table id="live-comparison-table">
-              <thead>
-                <tr>
-                  <th>Strategy</th>
-                  <th>Total Cost</th>
-                  <th>Fill Rate</th>
-                  <th>Avg Inventory</th>
-                  <th>Stockout Days</th>
-                </tr>
-              </thead>
-              <tbody id="live-comparison-tbody"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <div id="playback-log" class="playback-log" aria-live="polite"></div>
       </div>
 
       <!-- Strategy Comparison Builder -->
