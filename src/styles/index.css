@@ -851,6 +851,34 @@ body.modal-open {
   color: var(--text-secondary);
 }
 
+.process-3d-live-message {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  max-width: min(82%, 460px);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 11px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(170, 204, 221, 0.7);
+  border-radius: 12px;
+  color: #11243d;
+  z-index: 2;
+  backdrop-filter: blur(2px);
+}
+
+.process-3d-live-message .message-emoji {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.process-3d-live-message .message-text {
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 600;
+}
+
 .flow-visual-card {
   background: rgba(8, 10, 20, 0.65);
   border: 1px solid rgba(99, 102, 241, 0.16);

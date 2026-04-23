@@ -15,8 +15,24 @@ let playbackTimer = null;
 let playbackStepping = false;
 let autoPlaybackEnabled = false;
 let playbackBaseStock = 1;
+let playbackFlowState = null;
 let editingStrategyIndex = -1;
 const PLAYBACK_ACTION_BUTTON_IDS = ['btn-init-playback', 'btn-next-day', 'btn-auto-day', 'btn-skip-period'];
+
+function getPlaybackAdvanceMode() {
+  const mode = document.getElementById('playback-advance-mode')?.value;
+  return mode === 'step' ? 'step' : 'day';
+}
+
+function updatePlaybackControlLabels() {
+  const mode = getPlaybackAdvanceMode();
+  const nextBtn = document.getElementById('btn-next-day');
+  const autoBtn = document.getElementById('btn-auto-day');
+  if (nextBtn) nextBtn.textContent = mode === 'step' ? 'Next Step' : 'Next Day';
+  if (autoBtn) autoBtn.textContent = autoPlaybackEnabled
+    ? (mode === 'step' ? 'Pause Auto Step' : 'Pause Auto Day')
+    : (mode === 'step' ? 'Start Auto Step' : 'Start Auto Day');
+}
 
 function buildPresetStrategies() {
   const presets = [];
@@ -122,6 +138,56 @@ function wait(ms) {
 
 function getStepDelayMs() {
   return Math.max(90, Math.round(getPlaybackSpeedMs() * 0.45));
+}
+
+function buildFlowPath(snapshot) {
+  const flowPath = ['start-day', 'daily-sales', 'check-inventory'];
+
+  if (snapshot.unmet > 0) {
+    flowPath.push('lost-customer', 'tally-lost');
+  }
+
+  flowPath.push('reduce-inventory', 'reorder-check');
+
+  if (snapshot.placedOrderQty > 0) {
+    flowPath.push('create-po', 'place-order', 'supplier-lead', 'trigger-reorder');
+  }
+
+  if (snapshot.receivedQty > 0) {
+    flowPath.push('stock-received');
+  }
+
+  flowPath.push('total', 'end-day');
+  return flowPath;
+}
+
+function setPlaybackFlowState(snapshot, stageIndex = 0) {
+  const flowPath = buildFlowPath(snapshot);
+  playbackFlowState = {
+    snapshot,
+    flowPath,
+    stageIndex: Math.max(0, Math.min(stageIndex, flowPath.length - 1)),
+  };
+}
+
+function renderPlaybackStep(stage, snapshot) {
+  setProcess3DStage(stage);
+  setFlowStage(stage);
+  moveTruckToStage(stage);
+  updateProcess3DScene({
+    stock: snapshot.stock,
+    baseStock: playbackBaseStock,
+    demand: snapshot.demand,
+    pendingOrders: snapshot.pendingOrders,
+    nextReceiptDays: snapshot.nextReceiptDays,
+    placedOrderQty: snapshot.placedOrderQty,
+    receivedQty: snapshot.receivedQty,
+  });
+  animatePOTruck(snapshot.placedOrderQty, snapshot.receivedQty, snapshot.nextReceiptDays);
+  renderPlaybackStats(snapshot);
+  renderDemandAndServed(snapshot.demand, snapshot.fulfilled, snapshot.unmet);
+  renderInventoryRack(snapshot.stock);
+  refreshLiveResults();
 }
 
 async function animateFlowPath(path) {
@@ -455,8 +521,7 @@ function stopAutoPlayback() {
     playbackTimer = null;
   }
   autoPlaybackEnabled = false;
-  const autoBtn = document.getElementById('btn-auto-day');
-  if (autoBtn) autoBtn.textContent = 'Start Auto Day';
+  updatePlaybackControlLabels();
 }
 
 function setPlaybackButtonsEnabled(enabled) {
@@ -488,6 +553,15 @@ function getSelectedPlaybackProduct() {
 }
 
 async function runNextPlaybackDay() {
+  if (getPlaybackAdvanceMode() === 'step') {
+    await runNextPlaybackStep();
+    return;
+  }
+
+  await runNextPlaybackDayOnly();
+}
+
+async function runNextPlaybackDayOnly() {
   if (!playbackState || playbackStepping) return;
   setActivePlaybackAction('btn-next-day');
 
@@ -496,62 +570,93 @@ async function runNextPlaybackDay() {
   const nextBtn = document.getElementById('btn-next-day');
   if (nextBtn) nextBtn.disabled = true;
 
-  const snapshot = stepPlaybackDay(playbackState);
-  renderPlaybackStats(snapshot);
-  renderDemandAndServed(snapshot.demand, snapshot.fulfilled, snapshot.unmet);
-  renderInventoryRack(snapshot.stock);
-  updateProcess3DScene({
-    stock: snapshot.stock,
-    baseStock: playbackBaseStock,
-    demand: snapshot.demand,
-    pendingOrders: snapshot.pendingOrders,
-    nextReceiptDays: snapshot.nextReceiptDays,
-    placedOrderQty: snapshot.placedOrderQty,
-    receivedQty: snapshot.receivedQty,
-  });
-  animatePOTruck(snapshot.placedOrderQty, snapshot.receivedQty, snapshot.nextReceiptDays);
-  refreshLiveResults();
+  try {
+    if (!playbackState || playbackState.done) {
+      setPlaybackButtonsEnabled(false);
+      return;
+    }
 
-  const flowPath = [
-    'start-day',
-    'daily-sales',
-    'check-inventory',
-  ];
+    const snapshot = stepPlaybackDay(playbackState);
+    const flowPath = buildFlowPath(snapshot);
+    const finalStage = flowPath[flowPath.length - 1] || 'end-day';
 
-  if (snapshot.unmet > 0) {
-    flowPath.push('lost-customer', 'tally-lost');
+    setPlaybackFlowState(snapshot, flowPath.length - 1);
+    renderPlaybackStep(finalStage, snapshot);
+    appendPlaybackLog(
+      `Day ${snapshot.day}: completed full day (stock ${snapshot.stock}, demand ${snapshot.demand}, fulfilled ${snapshot.fulfilled}, unmet ${snapshot.unmet}).`,
+    );
+
+    if (snapshot.done) {
+      stopAutoPlayback();
+      setPlaybackButtonsEnabled(false);
+      appendPlaybackLog('Simulation completed.');
+      window.dispatchEvent(new CustomEvent('process-flow-complete'));
+    } else {
+      setProcess3DStage('start-day');
+      setFlowStage('start-day');
+      moveTruckToStage('start-day');
+    }
+  } finally {
+    if (!autoPlaybackEnabled && nextBtn) nextBtn.disabled = false;
+    playbackStepping = false;
   }
+}
 
-  flowPath.push('reduce-inventory', 'reorder-check');
+async function runNextPlaybackStep() {
+  if (!playbackState || playbackStepping) return;
+  setActivePlaybackAction('btn-next-day');
 
-  if (snapshot.placedOrderQty > 0) {
-    flowPath.push('create-po', 'place-order', 'supplier-lead', 'trigger-reorder');
+  playbackStepping = true;
+
+  const nextBtn = document.getElementById('btn-next-day');
+  if (nextBtn) nextBtn.disabled = true;
+
+  try {
+    if (!playbackFlowState) {
+      const snapshot = stepPlaybackDay(playbackState);
+      setPlaybackFlowState(snapshot, 1);
+      renderPlaybackStep(playbackFlowState.flowPath[playbackFlowState.stageIndex], snapshot);
+      appendPlaybackLog(`Day ${snapshot.day}: ${playbackFlowState.flowPath[playbackFlowState.stageIndex].replace(/-/g, ' ')}.`);
+      if (snapshot.done) {
+        stopAutoPlayback();
+        setPlaybackButtonsEnabled(false);
+        appendPlaybackLog('Simulation completed.');
+        window.dispatchEvent(new CustomEvent('process-flow-complete'));
+      }
+      return;
+    }
+
+    const flowState = playbackFlowState;
+    const snapshot = flowState.snapshot;
+
+    if (flowState.stageIndex < flowState.flowPath.length - 1) {
+      flowState.stageIndex += 1;
+      const stage = flowState.flowPath[flowState.stageIndex];
+      renderPlaybackStep(stage, snapshot);
+      appendPlaybackLog(`Day ${snapshot.day}: ${stage.replace(/-/g, ' ')}.`);
+    } else {
+      if (playbackState.done) {
+        setPlaybackButtonsEnabled(false);
+        appendPlaybackLog('Simulation completed.');
+        window.dispatchEvent(new CustomEvent('process-flow-complete'));
+        return;
+      }
+
+      const nextSnapshot = stepPlaybackDay(playbackState);
+      setPlaybackFlowState(nextSnapshot, 0);
+      renderPlaybackStep(playbackFlowState.flowPath[0], nextSnapshot);
+      appendPlaybackLog(`Day ${nextSnapshot.day}: ${playbackFlowState.flowPath[0].replace(/-/g, ' ')}.`);
+
+      if (nextSnapshot.done) {
+        setPlaybackButtonsEnabled(false);
+        appendPlaybackLog('Simulation completed.');
+        window.dispatchEvent(new CustomEvent('process-flow-complete'));
+      }
+    }
+  } finally {
+    if (!autoPlaybackEnabled && nextBtn) nextBtn.disabled = false;
+    playbackStepping = false;
   }
-
-  if (snapshot.receivedQty > 0) {
-    flowPath.push('stock-received');
-  }
-
-  flowPath.push('total', 'end-day');
-
-  await animateFlowPath(flowPath);
-
-  appendPlaybackLog(
-    `Day ${snapshot.day}: received ${snapshot.receivedQty}, demand ${snapshot.demand}, fulfilled ${snapshot.fulfilled}, unmet ${snapshot.unmet}, order ${snapshot.placedOrderQty}`,
-  );
-
-  if (snapshot.done) {
-    setProcess3DStage('end-day');
-    setFlowStage('end-day');
-    stopAutoPlayback();
-    setPlaybackButtonsEnabled(false);
-    appendPlaybackLog('Simulation completed.');
-    window.dispatchEvent(new CustomEvent('process-flow-complete'));
-  } else if (!autoPlaybackEnabled && nextBtn) {
-    nextBtn.disabled = false;
-  }
-
-  playbackStepping = false;
 }
 
 function initPlaybackSimulation() {
@@ -613,6 +718,21 @@ function initPlaybackSimulation() {
     placedOrderQty: 0,
     receivedQty: 0,
   });
+  setPlaybackFlowState({
+    day: 0,
+    days: settings.days,
+    stock: playbackState.stock,
+    demand: 0,
+    fulfilled: 0,
+    unmet: 0,
+    pendingOrders: 0,
+    nextReceiptDays: null,
+    placedOrderQty: 0,
+    receivedQty: 0,
+    fillRate: 1,
+    totalCost: 0,
+  }, 0);
+  updatePlaybackControlLabels();
   refreshLiveResults();
   setStrategyComparisonLocked(false);
   window.dispatchEvent(new CustomEvent('process-flow-initialized'));
@@ -656,6 +776,7 @@ async function skipPlaybackPeriod() {
   renderPlaybackStats(snapshot);
   renderDemandAndServed(snapshot.demand, snapshot.fulfilled, snapshot.unmet);
   renderInventoryRack(snapshot.stock);
+  setPlaybackFlowState(snapshot, buildFlowPath(snapshot).length - 1);
   updateProcess3DScene({
     stock: snapshot.stock,
     baseStock: playbackBaseStock,
@@ -668,24 +789,7 @@ async function skipPlaybackPeriod() {
   animatePOTruck(snapshot.placedOrderQty, snapshot.receivedQty, snapshot.nextReceiptDays);
   refreshLiveResults();
 
-  const flowPath = [
-    'start-day',
-    'daily-sales',
-    'check-inventory',
-    'reduce-inventory',
-    'reorder-check',
-  ];
-
-  if (snapshot.placedOrderQty > 0) {
-    flowPath.push('create-po', 'place-order', 'supplier-lead', 'trigger-reorder');
-  }
-
-  if (snapshot.receivedQty > 0) {
-    flowPath.push('stock-received');
-  }
-
-  flowPath.push('total', 'end-day');
-  await animateFlowPath(flowPath);
+  await animateFlowPath(buildFlowPath(snapshot));
 
   appendPlaybackLog(
     `Skipped ${skippedDays} day(s) (${getPlaybackSkipLabel()}) to day ${snapshot.day}: stock ${snapshot.stock}, demand ${snapshot.demand}, fulfilled ${snapshot.fulfilled}, unmet ${snapshot.unmet}.`,
@@ -707,7 +811,6 @@ async function skipPlaybackPeriod() {
 function toggleAutoPlayback() {
   if (!playbackState || playbackState.done) return;
 
-  const autoBtn = document.getElementById('btn-auto-day');
   if (autoPlaybackEnabled) {
     stopAutoPlayback();
     setActivePlaybackAction('btn-next-day');
@@ -722,7 +825,7 @@ function toggleAutoPlayback() {
   setActivePlaybackAction('btn-auto-day');
   const nextBtn = document.getElementById('btn-next-day');
   if (nextBtn) nextBtn.disabled = true;
-  autoBtn.textContent = 'Pause Auto Day';
+  updatePlaybackControlLabels();
 
   const tick = async () => {
     if (!autoPlaybackEnabled || !playbackState || playbackState.done) {
@@ -737,7 +840,10 @@ function toggleAutoPlayback() {
       return;
     }
 
-    playbackTimer = setTimeout(tick, Math.max(40, getPlaybackSpeedMs() - getStepDelayMs()));
+    const interval = getPlaybackAdvanceMode() === 'step'
+      ? Math.max(40, getPlaybackSpeedMs() - getStepDelayMs())
+      : Math.max(80, getPlaybackSpeedMs());
+    playbackTimer = setTimeout(tick, interval);
   };
 
   tick();
@@ -747,6 +853,12 @@ function handlePlaybackSpeedChange() {
   if (!playbackTimer) return;
   stopAutoPlayback();
   toggleAutoPlayback();
+}
+
+function handlePlaybackAdvanceModeChange() {
+  stopAutoPlayback();
+  updatePlaybackControlLabels();
+  playbackFlowState = null;
 }
 
 export function refreshPlaybackProductOptions() {
@@ -948,6 +1060,7 @@ export function initDashboard() {
   document.getElementById('btn-auto-day').addEventListener('click', toggleAutoPlayback);
   document.getElementById('btn-skip-period').addEventListener('click', skipPlaybackPeriod);
   document.getElementById('playback-speed').addEventListener('change', handlePlaybackSpeedChange);
+  document.getElementById('playback-advance-mode').addEventListener('change', handlePlaybackAdvanceModeChange);
 
   setPlaybackButtonsEnabled(false);
   setStrategyComparisonLocked(false);
@@ -958,5 +1071,6 @@ export function initDashboard() {
   refreshLiveResults();
   renderStrategyList();
   refreshPlaybackProductOptions();
+  updatePlaybackControlLabels();
   setActivePlaybackAction('btn-next-day');
 }
