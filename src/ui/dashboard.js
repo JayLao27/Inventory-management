@@ -582,6 +582,7 @@ async function runNextPlaybackDayOnly() {
 
     setPlaybackFlowState(snapshot, flowPath.length - 1);
     renderPlaybackStep(finalStage, snapshot);
+    await animateFlowPath(flowPath);
     appendPlaybackLog(
       `Day ${snapshot.day}: completed full day (stock ${snapshot.stock}, demand ${snapshot.demand}, fulfilled ${snapshot.fulfilled}, unmet ${snapshot.unmet}).`,
     );
