@@ -76,8 +76,6 @@
             <select id="sf-policy">
               <option value="rop">Fixed Reorder Point (ROP)</option>
               <option value="eoq">Economic Order Quantity (EOQ)</option>
-              <option value="jit">Just-In-Time (JIT)</option>
-              <option value="periodic">Periodic Review</option>
             </select>
           </label>
           <div id="sf-params"></div>
@@ -135,8 +133,6 @@
             <select id="policy-type">
               <option value="rop">Fixed Reorder Point (ROP)</option>
               <option value="eoq">Economic Order Quantity (EOQ)</option>
-              <option value="jit">Just-In-Time (JIT)</option>
-              <option value="periodic">Periodic Review</option>
             </select>
           </label>
           <div id="policy-params"></div>
@@ -211,12 +207,6 @@
             </div>
 
             <div class="flow-visuals">
-              <div class="flow-visual-card process-3d-card">
-                <div class="flow-visual-title">3D Process Loop</div>
-                <div id="process-3d-scene" class="process-3d-scene" aria-hidden="true"></div>
-                <p id="process-3d-caption" class="process-3d-caption">Monitoring inventory flow. Rice sack inventory: 0%</p>
-              </div>
-
               <div class="flow-visual-card">
                 <div class="flow-visual-title">Start Of Day Demand</div>
                 <div id="customer-stream" class="customer-stream" aria-live="polite"></div>
@@ -244,7 +234,7 @@
           <div class="playback-sidebar">
             <div class="playback-controls-row">
               <label>
-                Product
+                Store Scope
                 <select id="playback-product"></select>
               </label>
               <label>
@@ -376,6 +366,24 @@
       </div>
     </section>
   </main>
+
+  <div id="flow-process-loop-backdrop" class="flow-process-loop-backdrop" aria-hidden="true"></div>
+
+  <div id="flow-process-loop" class="flow-process-loop" aria-label="3D process loop">
+    <div id="flow-process-loop-bar" class="flow-process-loop-bar">
+      <div class="flow-visual-title">3D Process Loop</div>
+      <div class="flow-process-loop-actions">
+        <button id="btn-process-loop-expand" class="flow-process-loop-btn" type="button" aria-label="Open 3D process loop modal" title="Open modal">⤢</button>
+        <button id="btn-process-loop-close" class="flow-process-loop-btn flow-process-loop-close" type="button" aria-label="Close 3D process loop modal" title="Close modal">✕</button>
+      </div>
+    </div>
+    <div id="process-3d-scene" class="process-3d-scene" aria-hidden="true"></div>
+    <p id="process-3d-caption" class="process-3d-caption">Monitoring inventory flow. Rice sack inventory: 0%</p>
+  </div>
+
+  <button id="btn-show-process-loop" class="show-animation-btn hidden" type="button" aria-label="Show animation widget">
+    Show Animation
+  </button>
 
   <footer id="app-footer">
     <p>InvSim &mdash; Grocery Strategy Simulator &copy; 2026</p>
