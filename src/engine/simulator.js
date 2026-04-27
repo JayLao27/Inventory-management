@@ -3,7 +3,7 @@
  *
  * Supports multiple Monte Carlo runs with fresh randomised demand each run.
  * Returns aggregate metrics and per-run time-series for charting.
- */
+ */ 
 
 import { generateDemand } from './demand.js';
 import { POLICIES } from './policies.js';
@@ -58,6 +58,72 @@ export function createPlaybackSimulation({
     totalFulfilled: 0,
     ordersPlaced: 0,
     pendingQueue: [],
+    stockSeries: [],
+    demandSeries: [],
+    fulfilledSeries: [],
+    costSeries: [],
+  };
+}
+
+/**
+ * Build a mutable simulation state for interactive day-by-day playback
+ * across all products in a retail store.
+ *
+ * @param {object} opts
+ * @param {import('./product.js').Product[]} opts.products
+ * @param {import('./warehouse.js').Warehouse} opts.warehouse
+ * @param {string} opts.demandType
+ * @param {number} opts.demandBase
+ * @param {number} opts.demandVariance
+ * @param {object} opts.demandExtra
+ * @param {string} opts.policyKey
+ * @param {object} opts.policyParams
+ * @param {number} opts.days
+ */
+export function createStorePlaybackSimulation({
+  products,
+  warehouse,
+  demandType,
+  demandBase,
+  demandVariance,
+  demandExtra,
+  policyKey,
+  policyParams,
+  days,
+}) {
+  const policyFn = POLICIES[policyKey];
+  if (!policyFn) throw new Error(`Unknown policy: ${policyKey}`);
+
+  const productStates = products.map((product) => ({
+    product,
+    stock: product.initialStock,
+    pendingQueue: [],
+    demand: generateDemand(demandType, days, demandBase, demandVariance, demandExtra),
+  }));
+
+  const demandsBySku = Object.fromEntries(productStates.map((ps) => [ps.product.sku, ps.demand.slice()]));
+  const initialStock = productStates.reduce((sum, ps) => sum + ps.stock, 0);
+
+  return {
+    products,
+    productStates,
+    demandsBySku,
+    warehouse,
+    policyFn,
+    policyKey,
+    policyParams,
+    demandBase,
+    days,
+    day: 0,
+    done: false,
+    stock: initialStock,
+    totalHoldingCost: 0,
+    totalOrderingCost: 0,
+    totalStockoutCost: 0,
+    stockoutDays: 0,
+    totalDemand: 0,
+    totalFulfilled: 0,
+    ordersPlaced: 0,
     stockSeries: [],
     demandSeries: [],
     fulfilledSeries: [],
@@ -173,6 +239,140 @@ export function stepPlaybackDay(state) {
     fulfilled,
     unmet,
     placedOrderQty,
+    totalCost,
+    fillRate: state.totalDemand > 0 ? state.totalFulfilled / state.totalDemand : 1,
+    stockoutDays: state.stockoutDays,
+    ordersPlaced: state.ordersPlaced,
+  };
+}
+
+/**
+ * Advance interactive playback by one day for retail-store mode (all products).
+ *
+ * @param {ReturnType<typeof createStorePlaybackSimulation>} state
+ */
+export function stepStorePlaybackDay(state) {
+  const getStockMap = () => new Map(state.productStates.map((ps) => [ps.product.sku, ps.stock]));
+  const getPendingOrdersQty = () => state.productStates.reduce((sum, ps) => {
+    return sum + ps.pendingQueue.reduce((sub, o) => sub + o.qty, 0);
+  }, 0);
+  const getNextReceiptDays = () => {
+    const arrivals = state.productStates.flatMap((ps) => ps.pendingQueue.map((order) => order.arriveDay));
+    if (!arrivals.length) return null;
+    const nearestArrival = Math.min(...arrivals);
+    return Math.max(0, nearestArrival - state.day);
+  };
+
+  if (state.done || state.day >= state.days) {
+    state.done = true;
+    return {
+      done: true,
+      day: state.day,
+      days: state.days,
+      stock: state.stock,
+      pendingOrders: getPendingOrdersQty(),
+      nextReceiptDays: getNextReceiptDays(),
+      receivedQty: 0,
+      demand: 0,
+      fulfilled: 0,
+      unmet: 0,
+      placedOrderQty: 0,
+      totalCost: state.totalHoldingCost + state.totalOrderingCost + state.totalStockoutCost,
+      fillRate: state.totalDemand > 0 ? state.totalFulfilled / state.totalDemand : 1,
+      stockoutDays: state.stockoutDays,
+      ordersPlaced: state.ordersPlaced,
+    };
+  }
+
+  const day = state.day;
+  let dayReceivedQty = 0;
+  let dayDemand = 0;
+  let dayFulfilled = 0;
+  let dayUnmet = 0;
+  let dayPlacedOrderQty = 0;
+  let dayHoldingCost = 0;
+
+  for (const ps of state.productStates) {
+    // 1) Receive due orders for this product.
+    for (let i = ps.pendingQueue.length - 1; i >= 0; i--) {
+      if (ps.pendingQueue[i].arriveDay <= day) {
+        const incoming = ps.pendingQueue[i].qty;
+        const space = state.warehouse.availableSpace(getStockMap());
+        const accepted = Math.min(incoming, space);
+        ps.stock += accepted;
+        dayReceivedQty += accepted;
+        ps.pendingQueue.splice(i, 1);
+      }
+    }
+
+    // 2) Demand processing for this product.
+    const productDemand = ps.demand[day] ?? 0;
+    dayDemand += productDemand;
+    const productFulfilled = Math.min(productDemand, ps.stock);
+    dayFulfilled += productFulfilled;
+    const productUnmet = productDemand - productFulfilled;
+    dayUnmet += productUnmet;
+    ps.stock -= productFulfilled;
+
+    if (productUnmet > 0) {
+      state.totalStockoutCost += productUnmet * ps.product.unitCost * 1.5;
+    }
+
+    // 3) Holding cost for this product.
+    const productHoldingCost = ps.stock * ps.product.holdingCost;
+    dayHoldingCost += productHoldingCost;
+
+    // 4) Reorder decision for this product.
+    const pendingOrderQty = ps.pendingQueue.reduce((sum, o) => sum + o.qty, 0);
+    const avgDemand = day > 0
+      ? ps.demand.slice(0, day + 1).reduce((sum, v) => sum + v, 0) / (day + 1)
+      : state.demandBase;
+    const orderQty = state.policyFn({
+      day,
+      stock: ps.stock,
+      product: ps.product,
+      avgDemand,
+      demandHistory: ps.demand.slice(0, day + 1),
+      pendingOrders: pendingOrderQty,
+      params: state.policyParams,
+    });
+
+    if (orderQty > 0) {
+      state.ordersPlaced += 1;
+      state.totalOrderingCost += ps.product.orderingCost;
+      ps.pendingQueue.push({ arriveDay: day + ps.product.leadTime, qty: orderQty });
+      dayPlacedOrderQty += orderQty;
+    }
+  }
+
+  state.totalDemand += dayDemand;
+  state.totalFulfilled += dayFulfilled;
+  state.totalHoldingCost += dayHoldingCost;
+  if (dayUnmet > 0) state.stockoutDays += 1;
+
+  state.stock = state.productStates.reduce((sum, ps) => sum + ps.stock, 0);
+  state.stockSeries.push(state.stock);
+  state.demandSeries.push(dayDemand);
+  state.fulfilledSeries.push(dayFulfilled);
+  state.costSeries.push(dayHoldingCost);
+
+  state.day += 1;
+  state.done = state.day >= state.days;
+
+  const totalCost = state.totalHoldingCost + state.totalOrderingCost + state.totalStockoutCost;
+
+  return {
+    done: state.done,
+    day: state.day,
+    days: state.days,
+    stock: state.stock,
+    pendingOrders: getPendingOrdersQty(),
+    nextReceiptDays: getNextReceiptDays(),
+    receivedQty: dayReceivedQty,
+    demand: dayDemand,
+    fulfilled: dayFulfilled,
+    unmet: dayUnmet,
+    placedOrderQty: dayPlacedOrderQty,
     totalCost,
     fillRate: state.totalDemand > 0 ? state.totalFulfilled / state.totalDemand : 1,
     stockoutDays: state.stockoutDays,
@@ -306,6 +506,72 @@ function runSingle({
 }
 
 /**
+ * Run a single simulation across all products for one store under one policy.
+ *
+ * @param {object} opts
+ * @param {import('./product.js').Product[]} opts.products
+ * @param {import('./warehouse.js').Warehouse} opts.warehouse
+ * @param {string} opts.demandType
+ * @param {number} opts.demandBase
+ * @param {number} opts.demandVariance
+ * @param {object} opts.demandExtra
+ * @param {string} opts.policyKey
+ * @param {object} opts.policyParams
+ * @param {number} opts.days
+ */
+function runStoreSingle({
+  products,
+  warehouse,
+  demandType,
+  demandBase,
+  demandVariance,
+  demandExtra,
+  policyKey,
+  policyParams,
+  days,
+}) {
+  const policyFn = POLICIES[policyKey];
+  if (!policyFn) throw new Error(`Unknown policy: ${policyKey}`);
+
+  const state = createStorePlaybackSimulation({
+    products,
+    warehouse,
+    demandType,
+    demandBase,
+    demandVariance,
+    demandExtra,
+    policyKey,
+    policyParams,
+    days,
+  });
+
+  while (!state.done) {
+    stepStorePlaybackDay(state);
+  }
+
+  const totalCost = state.totalHoldingCost + state.totalOrderingCost + state.totalStockoutCost;
+  const fillRate = state.totalDemand > 0 ? state.totalFulfilled / state.totalDemand : 1;
+  const avgInventory = state.stockSeries.length > 0
+    ? state.stockSeries.reduce((a, b) => a + b, 0) / state.stockSeries.length
+    : state.stock;
+
+  return {
+    totalCost,
+    totalHoldingCost: state.totalHoldingCost,
+    totalOrderingCost: state.totalOrderingCost,
+    totalStockoutCost: state.totalStockoutCost,
+    fillRate,
+    avgInventory,
+    stockoutDays: state.stockoutDays,
+    ordersPlaced: state.ordersPlaced,
+    stockSeries: state.stockSeries,
+    demandSeries: state.demandSeries,
+    fulfilledSeries: state.fulfilledSeries,
+    costSeries: state.costSeries,
+  };
+}
+
+/**
  * Run N Monte Carlo simulations and aggregate.
  *
  * @param {object} config – same as runSingle + { runs, onProgress }
@@ -358,6 +624,66 @@ export async function simulate(config) {
   // fill-rate over time (cumulative)
   const fillRateSeries = [];
   let cumDemand = 0, cumFulfilled = 0;
+  for (let d = 0; d < days; d++) {
+    cumDemand += timeSeries.demand[d];
+    cumFulfilled += timeSeries.fulfilled[d];
+    fillRateSeries.push(cumDemand > 0 ? cumFulfilled / cumDemand : 1);
+  }
+  timeSeries.fillRate = fillRateSeries;
+
+  return { metrics: aggMetrics, timeSeries, runs: n, days };
+}
+
+/**
+ * Run N Monte Carlo simulations for all products in a store and aggregate.
+ *
+ * @param {object} config – runStoreSingle config + { runs, onProgress }
+ */
+export async function simulateStore(config) {
+  const { runs = 50, onProgress } = config;
+  const allResults = [];
+
+  for (let r = 0; r < runs; r++) {
+    allResults.push(runStoreSingle(config));
+    if (onProgress) {
+      onProgress((r + 1) / runs);
+      if (r % 10 === 9) await new Promise((res) => setTimeout(res, 0));
+    }
+  }
+
+  const n = allResults.length;
+  const days = config.days;
+  const avg = (arr, key) => arr.reduce((s, result) => s + result[key], 0) / n;
+
+  const aggMetrics = {
+    totalCost:        { mean: avg(allResults, 'totalCost'),        min: Math.min(...allResults.map(r => r.totalCost)),        max: Math.max(...allResults.map(r => r.totalCost)) },
+    holdingCost:      { mean: avg(allResults, 'totalHoldingCost'), min: Math.min(...allResults.map(r => r.totalHoldingCost)), max: Math.max(...allResults.map(r => r.totalHoldingCost)) },
+    orderingCost:     { mean: avg(allResults, 'totalOrderingCost'),min: Math.min(...allResults.map(r => r.totalOrderingCost)),max: Math.max(...allResults.map(r => r.totalOrderingCost)) },
+    stockoutCost:     { mean: avg(allResults, 'totalStockoutCost'),min: Math.min(...allResults.map(r => r.totalStockoutCost)),max: Math.max(...allResults.map(r => r.totalStockoutCost)) },
+    fillRate:         { mean: avg(allResults, 'fillRate'),         min: Math.min(...allResults.map(r => r.fillRate)),         max: Math.max(...allResults.map(r => r.fillRate)) },
+    avgInventory:     { mean: avg(allResults, 'avgInventory'),     min: Math.min(...allResults.map(r => r.avgInventory)),     max: Math.max(...allResults.map(r => r.avgInventory)) },
+    stockoutDays:     { mean: avg(allResults, 'stockoutDays'),     min: Math.min(...allResults.map(r => r.stockoutDays)),     max: Math.max(...allResults.map(r => r.stockoutDays)) },
+    ordersPlaced:     { mean: avg(allResults, 'ordersPlaced'),     min: Math.min(...allResults.map(r => r.ordersPlaced)),     max: Math.max(...allResults.map(r => r.ordersPlaced)) },
+  };
+
+  const avgSeriesOf = (key) => {
+    const series = new Float64Array(days);
+    for (const result of allResults) {
+      for (let d = 0; d < days; d++) series[d] += result[key][d];
+    }
+    return Array.from(series, (value) => value / n);
+  };
+
+  const timeSeries = {
+    stock:     avgSeriesOf('stockSeries'),
+    demand:    avgSeriesOf('demandSeries'),
+    fulfilled: avgSeriesOf('fulfilledSeries'),
+    cost:      avgSeriesOf('costSeries'),
+  };
+
+  const fillRateSeries = [];
+  let cumDemand = 0;
+  let cumFulfilled = 0;
   for (let d = 0; d < days; d++) {
     cumDemand += timeSeries.demand[d];
     cumFulfilled += timeSeries.fulfilled[d];

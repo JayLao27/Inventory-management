@@ -6,7 +6,7 @@
 import { initConfigPanel, getProducts, getWarehouseConfig, getDemandConfig, getPolicyConfig, getSimSettings } from './ui/configPanel.js';
 import { initDashboard, refreshSimSummary, refreshPlaybackProductOptions, getExtraStrategies } from './ui/dashboard.js';
 import { renderResults } from './ui/resultsPanel.js';
-import { simulate } from './engine/simulator.js';
+import { simulateStore } from './engine/simulator.js';
 import { Warehouse } from './engine/warehouse.js';
 import { POLICIES } from './engine/policies.js';
 
@@ -44,9 +44,8 @@ async function generateResultsFromCurrentConfig() {
 
     const strategyResults = [];
     for (const strat of strategies) {
-      const product = products[0];
-      const result = await simulate({
-        product,
+      const result = await simulateStore({
+        products,
         warehouse,
         demandType: demand.type,
         demandBase: demand.base,
