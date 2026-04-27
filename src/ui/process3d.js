@@ -426,6 +426,10 @@ function onResize() {
 	renderer.setSize(width, height, false);
 }
 
+export function resizeProcess3DScene() {
+	onResize();
+}
+
 function animate() {
 	if (!renderer || !scene || !camera) return;
 	requestAnimationFrame(animate);

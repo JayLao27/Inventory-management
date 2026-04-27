@@ -4,9 +4,9 @@
 
 import { getProducts, getWarehouseConfig, getDemandConfig, getPolicyConfig, getSimSettings } from './configPanel.js';
 import { POLICIES } from '../engine/policies.js';
-import { createPlaybackSimulation, stepPlaybackDay } from '../engine/simulator.js';
+import { createStorePlaybackSimulation, stepStorePlaybackDay } from '../engine/simulator.js';
 import { Warehouse } from '../engine/warehouse.js';
-import { initProcess3DScene, setProcess3DStage, updateProcess3DScene } from './process3d.js';
+import { initProcess3DScene, setProcess3DStage, updateProcess3DScene, resizeProcess3DScene } from './process3d.js';
 
 /** @type {Array<{label:string, policyKey:string, policyParams:object}>} */
 let extraStrategies = [];
@@ -66,34 +66,6 @@ function buildPresetStrategies() {
       label: `EOQ ${idx + 1}`,
       policyKey: 'eoq',
       policyParams: { safetyFactor: sf },
-    });
-  });
-
-  // JIT variants (9)
-  [0, 1, 2, 3, 4, 5, 6, 7, 8].forEach((bufferDays, idx) => {
-    presets.push({
-      label: `JIT ${idx + 1}`,
-      policyKey: 'jit',
-      policyParams: { bufferDays },
-    });
-  });
-
-  // Periodic variants (9)
-  [
-    { reviewPeriod: 3, targetLevel: 220 },
-    { reviewPeriod: 4, targetLevel: 250 },
-    { reviewPeriod: 5, targetLevel: 280 },
-    { reviewPeriod: 6, targetLevel: 320 },
-    { reviewPeriod: 7, targetLevel: 340 },
-    { reviewPeriod: 8, targetLevel: 360 },
-    { reviewPeriod: 10, targetLevel: 400 },
-    { reviewPeriod: 12, targetLevel: 450 },
-    { reviewPeriod: 14, targetLevel: 500 },
-  ].forEach((cfg, idx) => {
-    presets.push({
-      label: `Periodic ${idx + 1}`,
-      policyKey: 'periodic',
-      policyParams: { reviewPeriod: cfg.reviewPeriod, targetLevel: cfg.targetLevel },
     });
   });
 
@@ -410,12 +382,12 @@ function renderLiveResultsKpis() {
 function simulateStrategyForElapsedDays({ label, policyKey, policyParams, elapsedDays }) {
   const wh = getWarehouseConfig();
   const demand = getDemandConfig();
-  const product = playbackState?.product;
-  if (!product) return null;
+  const products = getProducts();
+  if (!products.length) return null;
 
   const simDays = Math.max(1, elapsedDays);
-  const sim = createPlaybackSimulation({
-    product,
+  const sim = createStorePlaybackSimulation({
+    products,
     warehouse: new Warehouse(wh),
     demandType: demand.type,
     demandBase: demand.base,
@@ -426,13 +398,17 @@ function simulateStrategyForElapsedDays({ label, policyKey, policyParams, elapse
     days: simDays,
   });
 
-  // Keep strategy comparison fair by replaying with the same realized demand curve.
-  if (playbackState?.demand?.length) {
-    sim.demand = playbackState.demand.slice(0, simDays);
+  // Keep strategy comparison fair by replaying with the same realized demand curves per product.
+  if (playbackState?.demandsBySku) {
+    sim.productStates.forEach((ps) => {
+      const shared = playbackState.demandsBySku[ps.product.sku];
+      if (Array.isArray(shared)) ps.demand = shared.slice(0, simDays);
+    });
+    sim.demandsBySku = Object.fromEntries(sim.productStates.map((ps) => [ps.product.sku, ps.demand.slice()]));
   }
 
   while (!sim.done && sim.day < elapsedDays) {
-    stepPlaybackDay(sim);
+    stepStorePlaybackDay(sim);
   }
 
   const m = computeLiveMetricsFromState(sim);
@@ -545,13 +521,6 @@ function setActivePlaybackAction(activeButtonId) {
   }
 }
 
-function getSelectedPlaybackProduct() {
-  const products = getProducts();
-  if (products.length === 0) return null;
-  const sku = document.getElementById('playback-product')?.value;
-  return products.find((p) => p.sku === sku) || products[0];
-}
-
 async function runNextPlaybackDay() {
   if (getPlaybackAdvanceMode() === 'step') {
     await runNextPlaybackStep();
@@ -576,7 +545,7 @@ async function runNextPlaybackDayOnly() {
       return;
     }
 
-    const snapshot = stepPlaybackDay(playbackState);
+    const snapshot = stepStorePlaybackDay(playbackState);
     const flowPath = buildFlowPath(snapshot);
     const finalStage = flowPath[flowPath.length - 1] || 'end-day';
 
@@ -614,7 +583,7 @@ async function runNextPlaybackStep() {
 
   try {
     if (!playbackFlowState) {
-      const snapshot = stepPlaybackDay(playbackState);
+      const snapshot = stepStorePlaybackDay(playbackState);
       setPlaybackFlowState(snapshot, 1);
       renderPlaybackStep(playbackFlowState.flowPath[playbackFlowState.stageIndex], snapshot);
       appendPlaybackLog(`Day ${snapshot.day}: ${playbackFlowState.flowPath[playbackFlowState.stageIndex].replace(/-/g, ' ')}.`);
@@ -643,7 +612,7 @@ async function runNextPlaybackStep() {
         return;
       }
 
-      const nextSnapshot = stepPlaybackDay(playbackState);
+      const nextSnapshot = stepStorePlaybackDay(playbackState);
       setPlaybackFlowState(nextSnapshot, 0);
       renderPlaybackStep(playbackFlowState.flowPath[0], nextSnapshot);
       appendPlaybackLog(`Day ${nextSnapshot.day}: ${playbackFlowState.flowPath[0].replace(/-/g, ' ')}.`);
@@ -661,8 +630,8 @@ async function runNextPlaybackStep() {
 }
 
 function initPlaybackSimulation() {
-  const product = getSelectedPlaybackProduct();
-  if (!product) {
+  const products = getProducts();
+  if (!products.length) {
     alert('Please add at least one product before starting day playback.');
     return;
   }
@@ -674,8 +643,8 @@ function initPlaybackSimulation() {
 
   stopAutoPlayback();
   setActivePlaybackAction('btn-init-playback');
-  playbackState = createPlaybackSimulation({
-    product,
+  playbackState = createStorePlaybackSimulation({
+    products,
     warehouse: new Warehouse(wh),
     demandType: demand.type,
     demandBase: demand.base,
@@ -690,7 +659,7 @@ function initPlaybackSimulation() {
   const log = document.getElementById('playback-log');
   if (log) {
     log.innerHTML = '';
-    appendPlaybackLog(`Initialized day-by-day simulation for ${product.name}.`);
+    appendPlaybackLog(`Initialized retail-store day playback for ${products.length} product(s).`);
   }
 
   setPlaybackButtonsEnabled(true);
@@ -764,7 +733,7 @@ async function skipPlaybackPeriod() {
   let snapshot = null;
 
   while (skippedDays < daysToSkip && playbackState && !playbackState.done) {
-    snapshot = stepPlaybackDay(playbackState);
+    snapshot = stepStorePlaybackDay(playbackState);
     skippedDays++;
   }
 
@@ -787,10 +756,12 @@ async function skipPlaybackPeriod() {
     placedOrderQty: snapshot.placedOrderQty,
     receivedQty: snapshot.receivedQty,
   });
-  animatePOTruck(snapshot.placedOrderQty, snapshot.receivedQty, snapshot.nextReceiptDays);
+  // Skip animations during fast-forward - just update state
+  const finalStage = buildFlowPath(snapshot)[buildFlowPath(snapshot).length - 1] || 'end-day';
+  setProcess3DStage(finalStage);
+  setFlowStage(finalStage);
+  moveTruckToStage(finalStage);
   refreshLiveResults();
-
-  await animateFlowPath(buildFlowPath(snapshot));
 
   appendPlaybackLog(
     `Skipped ${skippedDays} day(s) (${getPlaybackSkipLabel()}) to day ${snapshot.day}: stock ${snapshot.stock}, demand ${snapshot.demand}, fulfilled ${snapshot.fulfilled}, unmet ${snapshot.unmet}.`,
@@ -862,21 +833,180 @@ function handlePlaybackAdvanceModeChange() {
   playbackFlowState = null;
 }
 
+function initProcessLoopWidget() {
+  const loop = document.getElementById('flow-process-loop');
+  const bar = document.getElementById('flow-process-loop-bar');
+  const scene = document.getElementById('process-3d-scene');
+  const backdrop = document.getElementById('flow-process-loop-backdrop');
+  const expandBtn = document.getElementById('btn-process-loop-expand');
+  const closeBtn = document.getElementById('btn-process-loop-close');
+  const showBtn = document.getElementById('btn-show-process-loop');
+  if (!loop || !bar || !scene || !backdrop || !expandBtn || !closeBtn || !showBtn) return;
+
+  let activePointerId = null;
+  let offsetX = 0;
+  let offsetY = 0;
+  let pointerStartX = 0;
+  let pointerStartY = 0;
+  let moved = false;
+  let suppressClickUntil = 0;
+  let previousLeft = '';
+  let previousTop = '';
+  let previousRight = '';
+
+  const isExpanded = () => loop.classList.contains('expanded');
+
+  const openModal = () => {
+    if (isExpanded()) return;
+    previousLeft = loop.style.left;
+    previousTop = loop.style.top;
+    previousRight = loop.style.right;
+
+    // Hard-center modal to avoid residual draggable inline position from skewing layout.
+    loop.style.left = '50%';
+    loop.style.top = '50%';
+    loop.style.right = 'auto';
+
+    loop.classList.add('expanded');
+    backdrop.classList.add('active');
+    document.body.classList.add('modal-open');
+    window.setTimeout(() => resizeProcess3DScene(), 0);
+  };
+
+  const closeModal = () => {
+    if (!isExpanded()) return;
+    loop.classList.remove('expanded');
+    backdrop.classList.remove('active');
+    document.body.classList.remove('modal-open');
+    loop.style.left = previousLeft;
+    loop.style.top = previousTop;
+    loop.style.right = previousRight;
+    clampToViewport();
+    window.setTimeout(() => resizeProcess3DScene(), 0);
+  };
+
+  const hideWidget = () => {
+    closeModal();
+    loop.classList.add('loop-hidden');
+    showBtn.classList.remove('hidden');
+  };
+
+  const showWidget = () => {
+    loop.classList.remove('loop-hidden');
+    showBtn.classList.add('hidden');
+    clampToViewport();
+    window.setTimeout(() => resizeProcess3DScene(), 0);
+  };
+
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+  const clampToViewport = () => {
+    if (isExpanded()) return;
+    const loopRect = loop.getBoundingClientRect();
+    const currentLeft = Number.isFinite(parseFloat(loop.style.left))
+      ? parseFloat(loop.style.left)
+      : (window.innerWidth - loopRect.width - 16);
+    const currentTop = Number.isFinite(parseFloat(loop.style.top))
+      ? parseFloat(loop.style.top)
+      : 84;
+    const nextLeft = clamp(currentLeft, 6, Math.max(6, window.innerWidth - loopRect.width - 6));
+    const nextTop = clamp(currentTop, 6, Math.max(6, window.innerHeight - loopRect.height - 6));
+    loop.style.left = `${Math.round(nextLeft)}px`;
+    loop.style.top = `${Math.round(nextTop)}px`;
+    loop.style.right = 'auto';
+  };
+
+  const onPointerMove = (e) => {
+    if (activePointerId !== e.pointerId || isExpanded()) return;
+    const loopRect = loop.getBoundingClientRect();
+
+    const deltaX = Math.abs(e.clientX - pointerStartX);
+    const deltaY = Math.abs(e.clientY - pointerStartY);
+    if (deltaX > 3 || deltaY > 3) moved = true;
+
+    const nextLeft = clamp(e.clientX - offsetX, 6, Math.max(6, window.innerWidth - loopRect.width - 6));
+    const nextTop = clamp(e.clientY - offsetY, 6, Math.max(6, window.innerHeight - loopRect.height - 6));
+
+    loop.style.left = `${Math.round(nextLeft)}px`;
+    loop.style.top = `${Math.round(nextTop)}px`;
+    loop.style.right = 'auto';
+  };
+
+  const onPointerUp = (e) => {
+    if (activePointerId !== e.pointerId) return;
+    activePointerId = null;
+    loop.classList.remove('dragging');
+    if (moved) suppressClickUntil = Date.now() + 160;
+    moved = false;
+  };
+
+  bar.addEventListener('pointerdown', (e) => {
+    if (isExpanded()) return;
+    if (e.button !== 0) return;
+    activePointerId = e.pointerId;
+    moved = false;
+    pointerStartX = e.clientX;
+    pointerStartY = e.clientY;
+    const loopRect = loop.getBoundingClientRect();
+    offsetX = e.clientX - loopRect.left;
+    offsetY = e.clientY - loopRect.top;
+    loop.classList.add('dragging');
+    bar.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+
+  bar.addEventListener('pointermove', onPointerMove);
+  bar.addEventListener('pointerup', onPointerUp);
+  bar.addEventListener('pointercancel', onPointerUp);
+
+  scene.addEventListener('click', () => {
+    if (Date.now() < suppressClickUntil) return;
+    openModal();
+  });
+
+  expandBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openModal();
+  });
+
+  closeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    hideWidget();
+  });
+
+  showBtn.addEventListener('click', showWidget);
+
+  backdrop.addEventListener('click', closeModal);
+
+  window.addEventListener('resize', () => {
+    clampToViewport();
+    resizeProcess3DScene();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    closeModal();
+  });
+
+  // Start with animation hidden - user must click "Show Animation" button to view
+  hideWidget();
+}
+
 export function refreshPlaybackProductOptions() {
   const select = document.getElementById('playback-product');
   if (!select) return;
 
   const products = getProducts();
-  const current = select.value;
   select.innerHTML = '';
 
-  products.forEach((p, index) => {
-    const option = document.createElement('option');
-    option.value = p.sku;
-    option.textContent = `${p.name} (${p.sku})`;
-    if (p.sku === current || (!current && index === 0)) option.selected = true;
-    select.appendChild(option);
-  });
+  const option = document.createElement('option');
+  option.value = 'ALL_PRODUCTS';
+  option.textContent = products.length > 0
+    ? `All Products (${products.length})`
+    : 'All Products (0)';
+  option.selected = true;
+  select.appendChild(option);
+  select.disabled = true;
 }
 
 /**
@@ -1054,6 +1184,7 @@ export function initDashboard() {
   seedPresetStrategies();
   bindStrategyModalEvents();
   initProcess3DScene();
+  initProcessLoopWidget();
 
   // Day-by-day playback
   document.getElementById('btn-init-playback').addEventListener('click', initPlaybackSimulation);

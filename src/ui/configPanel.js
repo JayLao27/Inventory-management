@@ -213,7 +213,21 @@ export function initConfigPanel() {
   document.getElementById('demand-variance').addEventListener('input', updateDemandPreview);
   renderDemandExtraFields();
 
-  // Seed the catalog with only Rice by default
-  products.push(new Product({ name: 'Rice', sku: 'FOOD-RICE-001', category: 'Staple Foods', unitCost: 48, holdingCost: 0.05, orderingCost: 55, leadTime: 4, initialStock: 600 }));
+  // Seed the catalog with diverse grocery items
+  products.push(
+    new Product({ name: 'Rice', sku: 'FOOD-RICE-001', category: 'Staple Foods', unitCost: 48, holdingCost: 0.05, orderingCost: 55, leadTime: 4, initialStock: 600 }),
+    new Product({ name: 'Canned Corn', sku: 'FOOD-CORN-001', category: 'Canned Goods', unitCost: 25, holdingCost: 0.02, orderingCost: 45, leadTime: 3, initialStock: 400 }),
+    new Product({ name: 'Canned Beans', sku: 'FOOD-BEANS-001', category: 'Canned Goods', unitCost: 22, holdingCost: 0.02, orderingCost: 45, leadTime: 3, initialStock: 350 }),
+    new Product({ name: 'Canned Tomatoes', sku: 'FOOD-TOMATO-001', category: 'Canned Goods', unitCost: 28, holdingCost: 0.02, orderingCost: 45, leadTime: 3, initialStock: 380 }),
+    new Product({ name: 'Milk (1L)', sku: 'DAIRY-MILK-001', category: 'Dairy', unitCost: 65, holdingCost: 0.15, orderingCost: 35, leadTime: 1, initialStock: 200 }),
+    new Product({ name: 'Yogurt (500g)', sku: 'DAIRY-YOGURT-001', category: 'Dairy', unitCost: 55, holdingCost: 0.12, orderingCost: 30, leadTime: 1, initialStock: 150 }),
+    new Product({ name: 'Cheese (500g)', sku: 'DAIRY-CHEESE-001', category: 'Dairy', unitCost: 220, holdingCost: 0.25, orderingCost: 50, leadTime: 2, initialStock: 80 }),
+    new Product({ name: 'Bread (Loaf)', sku: 'BREAD-WHITE-001', category: 'Bread & Bakery', unitCost: 45, holdingCost: 0.20, orderingCost: 25, leadTime: 1, initialStock: 120 }),
+    new Product({ name: 'Whole Wheat Flour (2kg)', sku: 'GRAIN-FLOUR-001', category: 'Grains', unitCost: 85, holdingCost: 0.03, orderingCost: 50, leadTime: 5, initialStock: 200 }),
+    new Product({ name: 'Oats (1kg)', sku: 'GRAIN-OATS-001', category: 'Grains', unitCost: 120, holdingCost: 0.04, orderingCost: 45, leadTime: 4, initialStock: 150 }),
+    new Product({ name: 'Bottled Water (12-pack)', sku: 'BEVERAGE-WATER-001', category: 'Beverages', unitCost: 72, holdingCost: 0.08, orderingCost: 40, leadTime: 2, initialStock: 300 }),
+    new Product({ name: 'Orange Juice (2L)', sku: 'BEVERAGE-JUICE-001', category: 'Beverages', unitCost: 95, holdingCost: 0.10, orderingCost: 40, leadTime: 2, initialStock: 180 }),
+    new Product({ name: 'Ice Cream (1L)', sku: 'FROZEN-ICECREAM-001', category: 'Frozen', unitCost: 150, holdingCost: 0.30, orderingCost: 50, leadTime: 2, initialStock: 100 })
+  );
   renderProductList();
 }
