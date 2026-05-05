@@ -62,7 +62,7 @@ export function getPolicyConfig() {
 
 export function getSimSettings() {
   return {
-    days: +(document.getElementById('sim-duration').value) || 180,
+    days: +(document.getElementById('sim-duration').value) || 730,
     runs: +(document.getElementById('sim-runs').value) || 50,
   };
 }

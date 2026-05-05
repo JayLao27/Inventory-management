@@ -334,6 +334,7 @@ function computeLiveMetricsFromState(state) {
   const avgInventory = state.stockSeries.length > 0
     ? state.stockSeries.reduce((sum, v) => sum + v, 0) / state.stockSeries.length
     : state.stock;
+  const avgDemand = state.day > 0 ? state.totalDemand / state.day : 0;
 
   return {
     day: state.day,
@@ -341,6 +342,7 @@ function computeLiveMetricsFromState(state) {
     totalCost,
     fillRate,
     avgInventory,
+    avgDemand,
     stockoutDays: state.stockoutDays,
     ordersPlaced: state.ordersPlaced,
   };
@@ -358,6 +360,7 @@ function renderLiveResultsKpis() {
       <div class="playback-pill">Total Cost: <strong>₱0.00</strong></div>
       <div class="playback-pill">Fill Rate: <strong>0.00%</strong></div>
       <div class="playback-pill">Avg Inventory: <strong>0</strong></div>
+      <div class="playback-pill">Avg Demand: <strong>0</strong></div>
       <div class="playback-pill">Stockout Days: <strong>0</strong></div>
       <div class="playback-pill">Orders Placed: <strong>0</strong></div>
     `;
@@ -374,6 +377,7 @@ function renderLiveResultsKpis() {
     <div class="playback-pill">Total Cost: <strong>${formatCurrency(m.totalCost)}</strong></div>
     <div class="playback-pill">Fill Rate: <strong>${(m.fillRate * 100).toFixed(2)}%</strong></div>
     <div class="playback-pill">Avg Inventory: <strong>${Math.round(m.avgInventory)}</strong></div>
+    <div class="playback-pill">Avg Demand: <strong>${Math.round(m.avgDemand)}</strong></div>
     <div class="playback-pill">Stockout Days: <strong>${m.stockoutDays}</strong></div>
     <div class="playback-pill">Orders Placed: <strong>${m.ordersPlaced}</strong></div>
   `;
@@ -414,6 +418,8 @@ function simulateStrategyForElapsedDays({ label, policyKey, policyParams, elapse
   const m = computeLiveMetricsFromState(sim);
   return {
     label,
+    policyKey: policyKey,
+    policyParams: policyParams,
     totalCost: m.totalCost,
     fillRate: m.fillRate,
     avgInventory: m.avgInventory,
@@ -462,7 +468,10 @@ function renderLiveStrategyComparison() {
   tbody.innerHTML = '';
   rows.forEach((row, idx) => {
     const tr = document.createElement('tr');
+    tr.style.cursor = 'pointer';
+    tr.title = 'Click to see how this strategy works and its formula';
     if (idx === bestIdx) tr.className = 'best-row';
+
     tr.innerHTML = `
       <td>${row.label}${idx === bestIdx ? ' 🏆' : ''}</td>
       <td>${formatCurrency(row.totalCost)}</td>
@@ -470,6 +479,9 @@ function renderLiveStrategyComparison() {
       <td>${Math.round(row.avgInventory)}</td>
       <td>${row.stockoutDays}</td>
     `;
+    tr.addEventListener('click', () => {
+      showPolicyExplanationModal(row);
+    });
     tbody.appendChild(tr);
   });
 }
@@ -630,10 +642,17 @@ async function runNextPlaybackStep() {
 }
 
 function initPlaybackSimulation() {
-  const products = getProducts();
+  let products = getProducts();
   if (!products.length) {
     alert('Please add at least one product before starting day playback.');
     return;
+  }
+  const scopeSelect = document.getElementById('playback-product');
+  if (scopeSelect && scopeSelect.value && scopeSelect.value !== 'ALL_PRODUCTS') {
+    const selectedProduct = products.find(p => p.id === scopeSelect.value || p.sku === scopeSelect.value);
+    if (selectedProduct) {
+      products = [selectedProduct];
+    }
   }
 
   const wh = getWarehouseConfig();
@@ -838,10 +857,12 @@ function initProcessLoopWidget() {
   const bar = document.getElementById('flow-process-loop-bar');
   const scene = document.getElementById('process-3d-scene');
   const backdrop = document.getElementById('flow-process-loop-backdrop');
+  const helpBtn = document.getElementById('btn-process-loop-help');
   const expandBtn = document.getElementById('btn-process-loop-expand');
   const closeBtn = document.getElementById('btn-process-loop-close');
   const showBtn = document.getElementById('btn-show-process-loop');
-  if (!loop || !bar || !scene || !backdrop || !expandBtn || !closeBtn || !showBtn) return;
+  const formulaBtn = document.getElementById('btn-open-formula-help');
+  if (!loop || !bar || !scene || !backdrop || !expandBtn || !closeBtn || !showBtn || !formulaBtn) return;
 
   let activePointerId = null;
   let offsetX = 0;
@@ -889,11 +910,13 @@ function initProcessLoopWidget() {
     closeModal();
     loop.classList.add('loop-hidden');
     showBtn.classList.remove('hidden');
+    formulaBtn.classList.remove('hidden');
   };
 
   const showWidget = () => {
     loop.classList.remove('loop-hidden');
     showBtn.classList.add('hidden');
+    formulaBtn.classList.add('hidden');
     clampToViewport();
     window.setTimeout(() => resizeProcess3DScene(), 0);
   };
@@ -964,6 +987,15 @@ function initProcessLoopWidget() {
     openModal();
   });
 
+  if (helpBtn) {
+    helpBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      updateFormulaHelpModal();
+      const modal = document.getElementById('formula-help-modal');
+      if (modal) modal.classList.remove('hidden');
+    });
+  }
+
   expandBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     openModal();
@@ -976,6 +1008,11 @@ function initProcessLoopWidget() {
 
   showBtn.addEventListener('click', showWidget);
 
+  formulaBtn.addEventListener('click', () => {
+    updateFormulaHelpModal();
+    document.getElementById('formula-help-modal').classList.remove('hidden');
+  });
+
   backdrop.addEventListener('click', closeModal);
 
   window.addEventListener('resize', () => {
@@ -983,10 +1020,61 @@ function initProcessLoopWidget() {
     resizeProcess3DScene();
   });
 
+  // Make formula help modal draggable
+  const formulaPanel = document.getElementById('formula-help-panel');
+  const formulaHandle = document.getElementById('formula-help-drag-handle');
+  if (formulaPanel && formulaHandle) {
+    let fActivePointerId = null;
+    let fOffsetX = 0;
+    let fOffsetY = 0;
+
+    formulaHandle.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      fActivePointerId = e.pointerId;
+      const rect = formulaPanel.getBoundingClientRect();
+      fOffsetX = e.clientX - rect.left;
+      fOffsetY = e.clientY - rect.top;
+
+      formulaPanel.style.position = 'absolute';
+      formulaPanel.style.margin = '0';
+      formulaPanel.style.left = `${rect.left}px`;
+      formulaPanel.style.top = `${rect.top}px`;
+
+      formulaHandle.setPointerCapture(e.pointerId);
+      formulaPanel.classList.add('dragging');
+      e.preventDefault();
+    });
+
+    formulaHandle.addEventListener('pointermove', (e) => {
+      if (fActivePointerId !== e.pointerId) return;
+      formulaPanel.style.left = `${e.clientX - fOffsetX}px`;
+      formulaPanel.style.top = `${e.clientY - fOffsetY}px`;
+    });
+
+    const fOnPointerUp = (e) => {
+      if (fActivePointerId !== e.pointerId) return;
+      fActivePointerId = null;
+      formulaPanel.classList.remove('dragging');
+    };
+    formulaHandle.addEventListener('pointerup', fOnPointerUp);
+    formulaHandle.addEventListener('pointercancel', fOnPointerUp);
+  }
+
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     closeModal();
+    const explanationModal = document.getElementById('policy-explanation-modal');
+    if (explanationModal) explanationModal.classList.add('hidden');
+    const formulaModal = document.getElementById('formula-help-modal');
+    if (formulaModal) formulaModal.classList.add('hidden');
   });
+
+  const peBackdrop = document.getElementById('policy-explanation-backdrop');
+  if (peBackdrop) {
+    peBackdrop.addEventListener('click', () => {
+      document.getElementById('policy-explanation-modal').classList.add('hidden');
+    });
+  }
 
   // Start with animation hidden - user must click "Show Animation" button to view
   hideWidget();
@@ -997,6 +1085,7 @@ export function refreshPlaybackProductOptions() {
   if (!select) return;
 
   const products = getProducts();
+  const previousValue = select.value;
   select.innerHTML = '';
 
   const option = document.createElement('option');
@@ -1004,9 +1093,20 @@ export function refreshPlaybackProductOptions() {
   option.textContent = products.length > 0
     ? `All Products (${products.length})`
     : 'All Products (0)';
-  option.selected = true;
   select.appendChild(option);
-  select.disabled = true;
+
+  products.forEach(p => {
+    const prodOption = document.createElement('option');
+    prodOption.value = p.id;
+    prodOption.textContent = p.name;
+    select.appendChild(prodOption);
+  });
+
+  if (previousValue && Array.from(select.options).some(o => o.value === previousValue)) {
+    select.value = previousValue;
+  } else {
+    select.value = 'ALL_PRODUCTS';
+  }
 }
 
 /**
@@ -1193,6 +1293,14 @@ export function initDashboard() {
   document.getElementById('btn-skip-period').addEventListener('click', skipPlaybackPeriod);
   document.getElementById('playback-speed').addEventListener('change', handlePlaybackSpeedChange);
   document.getElementById('playback-advance-mode').addEventListener('change', handlePlaybackAdvanceModeChange);
+  document.getElementById('playback-product').addEventListener('change', () => {
+    if (playbackState && !playbackStepping) {
+      if (playbackAutoTimer) {
+        stopAutoPlayback();
+      }
+      initPlaybackSimulation();
+    }
+  });
 
   setPlaybackButtonsEnabled(false);
   setStrategyComparisonLocked(false);
@@ -1205,4 +1313,132 @@ export function initDashboard() {
   refreshPlaybackProductOptions();
   updatePlaybackControlLabels();
   setActivePlaybackAction('btn-next-day');
+}
+
+function showPolicyExplanationModal(row) {
+  const modal = document.getElementById('policy-explanation-modal');
+  if (!modal) return;
+  const title = document.getElementById('policy-explanation-title');
+  const body = document.getElementById('policy-explanation-body');
+
+  title.textContent = row.label;
+
+  const p = row.policyParams || {};
+  let contentHtml = '';
+
+  if (row.policyKey === 'rop') {
+    contentHtml = `
+      <p><strong>Fixed Reorder Point (ROP)</strong></p>
+      <p>When stock level (including pending orders) drops below or equals the <em>Reorder Point</em> threshold, a fixed <em>Order Quantity</em> is placed.</p>
+      <div class="code-block" style="background:#222; color:#0f0; padding:12px; border-radius:4px; font-family:monospace; margin:10px 0; overflow-x: auto;">
+        If (Stock ≤ ${p.reorderPoint || 50})<br/>
+        &nbsp;&nbsp;Order ${p.orderQty || 200} units<br/>
+        Else<br/>
+        &nbsp;&nbsp;Order 0 units
+      </div>
+      <ul style="margin-left: 20px; margin-top: 10px;">
+        <li><strong>Reorder Point:</strong> ${p.reorderPoint || 50} units</li>
+        <li><strong>Order Quantity:</strong> ${p.orderQty || 200} units</li>
+      </ul>
+    `;
+  } else if (row.policyKey === 'eoq') {
+    contentHtml = `
+      <p><strong>Economic Order Quantity (EOQ)</strong></p>
+      <p>Balances holding costs and ordering costs to find the optimal order size (Q*).</p>
+      <p>It triggers when the stock drops below the calculated safety stock line.</p>
+      <div class="code-block" style="background:#222; color:#0f0; padding:12px; border-radius:4px; font-family:monospace; margin:10px 0; overflow-x: auto;">
+        Q* = &#8730;(2 &times; D &times; S / H)<br/><br/>
+        D = Annual Demand<br/>
+        S = Ordering Cost per placement<br/>
+        H = Holding Cost per unit per year (Daily Holding Cost &times; 365)<br/><br/>
+        Safety Stock = Lead Time &times; Avg Demand &times; ${p.safetyFactor || 1.5} (Safety Factor)
+      </div>
+      <ul style="margin-left: 20px; margin-top: 10px;">
+        <li><strong>Safety Factor:</strong> ${p.safetyFactor || 1.5}</li>
+      </ul>
+    `;
+  } else if (row.policyKey === 'jit') {
+    contentHtml = `
+      <p><strong>Just-In-Time (JIT)</strong></p>
+      <p>Orders stock fluidly every day to carefully cover forecasted demand during the lead-time window plus a safety buffer.</p>
+      <div class="code-block" style="background:#222; color:#0f0; padding:12px; border-radius:4px; font-family:monospace; margin:10px 0; overflow-x: auto;">
+        Target = Avg Demand &times; (Lead Time + ${p.bufferDays || 1} Buffer Days)<br/>
+        Gap = Target - Current Stock - Pending Orders<br/>
+        If (Gap &gt; 0)<br/>
+        &nbsp;&nbsp;Order Gap units
+      </div>
+      <ul style="margin-left: 20px; margin-top: 10px;">
+        <li><strong>Buffer Days:</strong> ${p.bufferDays || 1} day(s)</li>
+      </ul>
+    `;
+  } else if (row.policyKey === 'periodic') {
+    contentHtml = `
+      <p><strong>Periodic Review</strong></p>
+      <p>Stock is only reviewed at a set interval (Review Period). When that day hits, the policy orders exactly enough to hit the Target Level ceiling.</p>
+      <div class="code-block" style="background:#222; color:#0f0; padding:12px; border-radius:4px; font-family:monospace; margin:10px 0; overflow-x: auto;">
+        If (Current Day % ${p.reviewPeriod || 7} == 0)<br/>
+        &nbsp;&nbsp;Gap = ${p.targetLevel || 300} - Current Stock - Pending Orders<br/>
+        &nbsp;&nbsp;Order Gap units
+      </div>
+      <ul style="margin-left: 20px; margin-top: 10px;">
+        <li><strong>Review Period:</strong> ${p.reviewPeriod || 7} day(s)</li>
+        <li><strong>Order-Up-To Level:</strong> ${p.targetLevel || 300} units</li>
+      </ul>
+    `;
+  }
+
+  body.innerHTML = contentHtml;
+  modal.classList.remove('hidden');
+}
+
+export function updateFormulaHelpModal() {
+  const dVal = document.getElementById('fh-val-d');
+  const sVal = document.getElementById('fh-val-s');
+  const hVal = document.getElementById('fh-val-h');
+  const ltVal = document.getElementById('fh-val-lt');
+  const ssVal = document.getElementById('fh-val-ss');
+
+  if (!dVal) return;
+
+  const products = getProducts();
+  const policy = getPolicyConfig();
+  const demandConfig = getDemandConfig();
+
+  let totalD = 0;
+  let totalS = 0;
+  let totalH = 0;
+  let totalLT = 0;
+  let totalSS = 0;
+
+  const scopeSelect = document.getElementById('playback-product');
+  let targetProducts = products;
+  if (scopeSelect && scopeSelect.value && scopeSelect.value !== 'ALL_PRODUCTS') {
+    const selected = products.find(p => p.id === scopeSelect.value || p.sku === scopeSelect.value);
+    if (selected) targetProducts = [selected];
+  }
+
+  if (targetProducts.length > 0) {
+    targetProducts.forEach(p => {
+      // Use real-time demand if available, else fall back to config demand
+      const avgDemand = (playbackState && playbackState.day > 0)
+        ? (playbackState.totalDemand / playbackState.day)
+        : demandConfig.base;
+
+      totalD += avgDemand * 365;
+      totalS += p.orderingCost;
+      totalH += p.holdingCost * 365;
+      totalLT += p.leadTime;
+
+      // Safety stock calculation
+      const safetyFactor = policy.params.safetyFactor || 1.5;
+      totalSS += p.leadTime * avgDemand * safetyFactor;
+    });
+
+    const count = targetProducts.length;
+    dVal.textContent = Math.round(totalD / count);
+    sVal.textContent = formatCurrency(totalS / count);
+    hVal.textContent = formatCurrency(totalH / count);
+    ltVal.textContent = `${Math.round(totalLT / count)} days`;
+    ssVal.textContent = `${Math.round(totalSS / count)} units`;
+  }
 }
