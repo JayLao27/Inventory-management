@@ -232,30 +232,30 @@ function buildOfficeScene() {
 function buildHighwayScene() {
 	const highway = new THREE.Group();
 
-	const road = new THREE.Mesh(new THREE.PlaneGeometry(13.5, 3.2), makeMaterial(0x333333, { roughness: 0.95 }));
+	const road = new THREE.Mesh(new THREE.PlaneGeometry(40, 3.2), makeMaterial(0x333333, { roughness: 0.95 }));
 	road.rotation.x = -Math.PI / 2;
-	road.position.set(4.1, 0.01, -0.4);
+	road.position.set(-20.0, 0.01, -0.4);
 	highway.add(road);
 
-	const shoulderL = new THREE.Mesh(new THREE.PlaneGeometry(13.5, 0.35), makeMaterial(0xf5f5dc));
+	const shoulderL = new THREE.Mesh(new THREE.PlaneGeometry(40, 0.35), makeMaterial(0xf5f5dc));
 	shoulderL.rotation.x = -Math.PI / 2;
-	shoulderL.position.set(4.1, 0.012, 1.22);
+	shoulderL.position.set(-20.0, 0.012, 1.22);
 	highway.add(shoulderL);
 
 	const shoulderR = shoulderL.clone();
 	shoulderR.position.z = -2.02;
 	highway.add(shoulderR);
 
-	for (let x = -2.2; x < 10.3; x += 1.2) {
+	for (let x = -39; x < -1; x += 1.2) {
 		const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.1), makeMaterial(0xffee00));
 		dash.rotation.x = -Math.PI / 2;
 		dash.position.set(x, 0.02, -0.4);
 		highway.add(dash);
 	}
 
-	const terrainTop = new THREE.Mesh(new THREE.PlaneGeometry(13.5, 2.4), makeMaterial(0x4a7a3a, { roughness: 0.98 }));
+	const terrainTop = new THREE.Mesh(new THREE.PlaneGeometry(40, 2.4), makeMaterial(0x4a7a3a, { roughness: 0.98 }));
 	terrainTop.rotation.x = -Math.PI / 2;
-	terrainTop.position.set(4.1, 0, 2.0);
+	terrainTop.position.set(-20.0, 0, 2.0);
 	highway.add(terrainTop);
 
 	const terrainBottom = terrainTop.clone();
@@ -272,15 +272,15 @@ function buildHighwayScene() {
 	const dock = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.22, 0.4), makeMaterial(0x888888));
 	dock.position.set(0, 0.11, 1.2);
 	warehouse.add(dock);
-	warehouse.position.set(8.2, 0, -1.1);
+	warehouse.position.set(-11.5, 0, -1.1);
 	highway.add(warehouse);
 
 	const truckModel = buildSupplierTruck();
 	supplierTruck = truckModel.group;
 	supplierWheels = truckModel.wheels;
 	supplierTruck.visible = false;
-	supplierTruck.position.set(-9.5, 0, -0.4);
-	supplierTruck.rotation.y = Math.PI / 2;
+	supplierTruck.position.set(-40.0, 0, -0.4);
+	supplierTruck.rotation.y = 0;
 	highway.add(supplierTruck);
 
 	phaseBeacon = new THREE.Mesh(
@@ -377,36 +377,36 @@ function updateSupplierTarget() {
 	const active = transitStages.includes(currentStage) || pendingOrders > 0 || lastPlacedQty > 0;
 	supplierTruck.visible = active;
 	if (!active) {
-		supplierTargetX = -9.5;
+		supplierTargetX = -40.0;
 		return;
 	}
 
 	if (currentStage === 'place-order') {
-		supplierTargetX = -9.5;
+		supplierTargetX = -40.0;
 		return;
 	}
 
 	if (currentStage === 'supplier-lead') {
 		if (Number.isFinite(nextReceiptDays)) {
 			const progress = 1 - Math.max(0, Math.min(1, nextReceiptDays / 3));
-			supplierTargetX = -9.5 + progress * 17.0;
+			supplierTargetX = -40.0 + progress * 24.0;
 		} else {
-			supplierTargetX = -1.0;
+			supplierTargetX = -18.0;
 		}
 		return;
 	}
 
 	if (currentStage === 'trigger-reorder') {
-		supplierTargetX = 7.6;
+		supplierTargetX = -13.5;
 		return;
 	}
 
 	if (currentStage === 'stock-received') {
-		supplierTargetX = 9.2;
+		supplierTargetX = -11.0;
 		return;
 	}
 
-	supplierTargetX = -9.5;
+	supplierTargetX = -40.0;
 }
 
 function updateSacksVisibility() {
@@ -477,11 +477,11 @@ export function initProcess3DScene() {
 
 	scene = new THREE.Scene();
 	scene.background = new THREE.Color(0x0b1220);
-	scene.fog = new THREE.Fog(0x0b1220, 16, 35);
+	scene.fog = new THREE.Fog(0x0b1220, 16, 45);
 
-	camera = new THREE.PerspectiveCamera(52, 1, 0.1, 80);
-	camera.position.set(-0.8, 8.8, 12.6);
-	camera.lookAt(-0.6, 0.5, 0);
+	camera = new THREE.PerspectiveCamera(52, 1, 0.1, 100);
+	camera.position.set(-8.0, 14.0, 20.0);
+	camera.lookAt(-8.0, 0.5, 0);
 
 	renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 	renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));

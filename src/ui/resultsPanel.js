@@ -20,12 +20,13 @@ export function renderResults(strategyResults) {
   const kpiRow = document.getElementById('kpi-row');
   kpiRow.innerHTML = '';
   const kpis = [
-    { label: 'Total Cost',     value: metrics.totalCost.mean, prefix: '₱', decimals: 0, sub: `Range: ₱${fmtK(metrics.totalCost.min)} – ₱${fmtK(metrics.totalCost.max)}` },
-    { label: 'Fill Rate',      value: metrics.fillRate.mean * 100, suffix: '%', decimals: 1, sub: `Min: ${(metrics.fillRate.min * 100).toFixed(1)}%` },
-    { label: 'Avg Inventory',  value: metrics.avgInventory.mean, decimals: 0, suffix: ' units', sub: `Range: ${Math.round(metrics.avgInventory.min)} – ${Math.round(metrics.avgInventory.max)}` },
-    { label: 'Stockout Days',  value: metrics.stockoutDays.mean, decimals: 1, suffix: ' days', sub: `of ${days} simulated days` },
-    { label: 'Holding Cost',   value: metrics.holdingCost.mean, prefix: '₱', decimals: 0, sub: '' },
-    { label: 'Ordering Cost',  value: metrics.orderingCost.mean, prefix: '₱', decimals: 0, sub: '' },
+    { label: 'Total Cost', value: metrics.totalCost.mean, prefix: '₱', decimals: 0, sub: `Range: ₱${fmtK(metrics.totalCost.min)} – ₱${fmtK(metrics.totalCost.max)}` },
+    { label: 'Fill Rate', value: metrics.fillRate.mean * 100, suffix: '%', decimals: 1, sub: `Min: ${(metrics.fillRate.min * 100).toFixed(1)}%` },
+    { label: 'Avg Inventory', value: metrics.avgInventory.mean, decimals: 0, suffix: ' units', sub: `Range: ${Math.round(metrics.avgInventory.min)} – ${Math.round(metrics.avgInventory.max)}` },
+    { label: 'Stockout Days', value: metrics.stockoutDays.mean, decimals: 1, suffix: ' days', sub: `of ${days} simulated days` },
+    { label: 'Orders Placed', value: metrics.ordersPlaced.mean, decimals: 1, suffix: ' orders', sub: `Range: ${Math.round(metrics.ordersPlaced.min)} – ${Math.round(metrics.ordersPlaced.max)}` },
+    { label: 'Holding Cost', value: metrics.holdingCost.mean, prefix: '₱', decimals: 0, sub: '' },
+    { label: 'Ordering Cost', value: metrics.orderingCost.mean, prefix: '₱', decimals: 0, sub: '' },
   ];
 
   kpis.forEach(k => {
@@ -107,7 +108,8 @@ export function renderResults(strategyResults) {
       <td>₱${fmtK(m.stockoutCost.mean)}</td>
       <td>${(m.fillRate.mean * 100).toFixed(1)}%</td>
       <td>${Math.round(m.avgInventory.mean)}</td>
-      <td>${m.stockoutDays.mean.toFixed(1)}</td>`;
+      <td>${m.stockoutDays.mean.toFixed(1)}</td>
+      <td>${m.ordersPlaced.mean.toFixed(1)}</td>`;
     tbody.appendChild(tr);
   });
 
@@ -127,9 +129,9 @@ function renderBottlenecks(strategyResults) {
 
   // Check fill rate
   if (m.fillRate.mean < 0.9) {
-    alerts.push({ icon: '🔴', text: `Low fill rate (${(m.fillRate.mean*100).toFixed(1)}%). Consider increasing safety stock or switching to a more responsive reorder policy.`, danger: true });
+    alerts.push({ icon: '🔴', text: `Low fill rate (${(m.fillRate.mean * 100).toFixed(1)}%). Consider increasing safety stock or switching to a more responsive reorder policy.`, danger: true });
   } else if (m.fillRate.mean < 0.95) {
-    alerts.push({ icon: '🟡', text: `Fill rate at ${(m.fillRate.mean*100).toFixed(1)}%. Minor stockout risk — consider a small safety stock increase.`, warn: true });
+    alerts.push({ icon: '🟡', text: `Fill rate at ${(m.fillRate.mean * 100).toFixed(1)}%. Minor stockout risk — consider a small safety stock increase.`, warn: true });
   }
 
   // Check stockout frequency
@@ -143,20 +145,20 @@ function renderBottlenecks(strategyResults) {
   // Check if holding cost dominates
   const holdingPct = m.holdingCost.mean / m.totalCost.mean;
   if (holdingPct > 0.6) {
-    alerts.push({ icon: '🟡', text: `Holding cost is ${(holdingPct*100).toFixed(0)}% of total cost. You may be over-stocking. Consider JIT or reducing reorder quantities.`, warn: true });
+    alerts.push({ icon: '🟡', text: `Holding cost is ${(holdingPct * 100).toFixed(0)}% of total cost. You may be over-stocking. Consider JIT or reducing reorder quantities.`, warn: true });
   }
 
   // Check if ordering cost dominates
   const orderingPct = m.orderingCost.mean / m.totalCost.mean;
   if (orderingPct > 0.5) {
-    alerts.push({ icon: '🟡', text: `Ordering cost is ${(orderingPct*100).toFixed(0)}% of total cost. Consolidating orders with larger batches (EOQ) may reduce costs.`, warn: true });
+    alerts.push({ icon: '🟡', text: `Ordering cost is ${(orderingPct * 100).toFixed(0)}% of total cost. Consolidating orders with larger batches (EOQ) may reduce costs.`, warn: true });
   }
 
   // Find inventory dips (periods where stock hits 0 on average)
   let lowStockDays = 0;
   for (const v of ts.stock) if (v < 5) lowStockDays++;
   if (lowStockDays > days * 0.1) {
-    alerts.push({ icon: '🔴', text: `Inventory drops near zero on ~${lowStockDays} days (${((lowStockDays/days)*100).toFixed(0)}% of the simulation).`, danger: true });
+    alerts.push({ icon: '🔴', text: `Inventory drops near zero on ~${lowStockDays} days (${((lowStockDays / days) * 100).toFixed(0)}% of the simulation).`, danger: true });
   }
 
   if (alerts.length === 0) {
