@@ -627,6 +627,56 @@ body.modal-open {
   50% { box-shadow: 0 12px 30px rgba(56, 189, 248, 0.52); }
 }
 
+.formula-help-trigger {
+  position: fixed;
+  right: 16px;
+  bottom: 74px; /* Positioned above the Show Animation button */
+  z-index: 235;
+  border: 1px solid rgba(168, 85, 247, 0.45);
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.92), rgba(99, 102, 241, 0.88));
+  color: #ffffff;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font: 600 var(--fs-sm) var(--font);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(168, 85, 247, 0.28);
+  transition: all var(--t-fast) var(--ease-out);
+}
+
+.formula-help-trigger:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(168, 85, 247, 0.36);
+}
+
+.modal-panel.dragging {
+  cursor: grabbing;
+}
+
+.modal-panel.dragging #formula-help-drag-handle {
+  cursor: grabbing;
+}
+
+#formula-help-modal {
+  pointer-events: none;
+}
+
+#formula-help-modal .modal-panel {
+  pointer-events: auto;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5); /* Stronger shadow since there's no backdrop */
+}
+
+.realtime-value {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--accent-secondary);
+  background: rgba(168, 85, 247, 0.1);
+  padding: 4px 8px;
+  border-radius: 6px;
+  margin-top: 4px;
+  border: 1px solid rgba(168, 85, 247, 0.15);
+}
+
 .flow-lane-label {
   font-size: 0.62rem;
   color: rgba(156, 163, 196, 0.92);
